@@ -84,11 +84,3 @@ func SaveScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
 var SaveItemOffersWithoutButtondScreenshot = func(c *config.Config) {
 	SaveScreenshot(c.Screenshot.ItemOffersListWithoutButtons)
 }
-
-var SaveItemOffersWithButtondScreenshot = func(c *config.Config) {
-	SaveScreenshot(c.Screenshot.ItemOffersListWithButtons)
-}
-
-var SaveItemListScreenshot = func(c *config.Config) {
-	SaveScreenshot(c.Screenshot.ItemList)
-}

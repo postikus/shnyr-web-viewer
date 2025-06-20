@@ -2,10 +2,10 @@ port: "COM6"
 baud_rate: 9600
 screenshot:
   item_list:
-    x: 56
-    y: 120
-    width: 232
-    height: 300
+    x: 120
+    y: 0
+    width: 260
+    height: 276
   item_offers_list_without_buttons:
     x: 56
     y: 96
@@ -33,8 +33,8 @@ screenshot:
     height: 30
 click:
   back:
-    x: 40
-    y: 80
+    x: 25
+    y: 8
   button1:
     x: 35
     y: 100
@@ -54,8 +54,8 @@ click:
     x: 180
     y: 100
   item1:
-    x: 124
-    y: 128
+    x: 125
+    y: 56
   item2:
     x: 125
     y: 155
