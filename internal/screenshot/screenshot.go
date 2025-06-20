@@ -2,13 +2,14 @@ package screenshot
 
 import (
 	"fmt"
-	"github.com/kbinani/screenshot"
 	"image"
 	"image/png"
 	"log"
 	"octopus/internal/config"
 	"os"
 	"path/filepath"
+
+	"github.com/kbinani/screenshot"
 )
 
 // CaptureScreenshot захватывает скриншот в память и возвращает декодированное изображение
@@ -22,6 +23,16 @@ func CaptureScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
 		return nil, fmt.Errorf("failed to capture screenshot: %v", err)
 	}
 
+	return img, nil
+}
+
+// CaptureFullScreen захватывает скриншот всего экрана
+func CaptureFullScreen() (image.Image, error) {
+	// Захватываем весь экран
+	img, err := screenshot.CaptureRect(image.Rect(0, 0, 1920, 1080)) // Стандартное разрешение, можно адаптировать
+	if err != nil {
+		return nil, fmt.Errorf("failed to capture full screen: %v", err)
+	}
 	return img, nil
 }
 
