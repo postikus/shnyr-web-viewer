@@ -2,12 +2,13 @@ package image
 
 import (
 	"fmt"
-	"github.com/nfnt/resize"
 	"image"
 	"image/color"
 	"image/draw"
 	"image/png"
 	"os"
+
+	"github.com/nfnt/resize"
 )
 
 // Функция для проверки цвета пикселя по координатам

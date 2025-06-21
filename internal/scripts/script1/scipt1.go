@@ -42,13 +42,24 @@ var Run = func(port *serial.Port, c *config.Config) {
 	}
 
 	marginX := gameWindow.X - 150
-	marginY := gameWindow.Y + topOffset + 45
+	marginY := gameWindow.Y + topOffset + 48
 
 	fmt.Printf("marginX, marginY: %v %v\n", marginX, marginY)
 
+	var captureScreenShot = func() image.Image {
+		img, _ := screenshot.CaptureScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
+		return img
+	}
+
+	var saveScreenShot = func() image.Image {
+		img, _ := screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
+		return img
+	}
+
 	var checkAndScreenScroll = func(counter int, x int) (int, int) {
-		img, _ := screenshot.CaptureScreenshot(config.CoordinatesWithSize{X: c.Screenshot.ItemOffersListWithoutButtons.X, Y: c.Screenshot.ItemOffersListWithoutButtons.Y, Width: 260, Height: c.Screenshot.ItemOffersListWithoutButtons.Height})
-		r, _, _, _ := imageInternal.GetPixelColor(img, 255, 290)
+		img := captureScreenShot()
+		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 325)
+		fmt.Printf("r: %v\n", r)
 		if r < 50 {
 			scripts.ScrollDown(port, c, x)
 		}
@@ -56,8 +67,8 @@ var Run = func(port *serial.Port, c *config.Config) {
 	}
 
 	var checkAndClickScreenScroll = func(counter int) (int, int) {
-		img, _ := screenshot.CaptureScreenshot(config.CoordinatesWithSize{X: c.Screenshot.ItemOffersListWithoutButtons.X, Y: c.Screenshot.ItemOffersListWithoutButtons.Y, Width: 260, Height: c.Screenshot.ItemOffersListWithoutButtons.Height})
-		r, _, _, _ := imageInternal.GetPixelColor(img, 255, 315)
+		img := captureScreenShot()
+		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 342)
 		if r < 50 {
 			scripts.FastClick(port, c)
 		}
@@ -74,37 +85,36 @@ var Run = func(port *serial.Port, c *config.Config) {
 		return len(files), nil
 	}
 
-	var makeScreenShotsWithScroll = func() bool {
+	var captureScreenShotsWithScroll = func() bool {
 		counter := 0
-		maxCounter := 100
+		maxCounter := 20
 		scrollRPx := 26
 
 		// Список для хранения всех скриншотов
 		var screenshots []image.Image
 		var smallScreenshots []image.Image
 
-		img, _ := screenshot.CaptureScreenshot(c.Screenshot.ItemOffersListWithoutButtons)
+		img := saveScreenShot()
 		screenshots = append(screenshots, img)
-
-		img, _ = screenshot.CaptureScreenshot(config.CoordinatesWithSize{X: c.Screenshot.ItemOffersListWithoutButtons.X, Y: c.Screenshot.ItemOffersListWithoutButtons.Y, Width: 260, Height: c.Screenshot.ItemOffersListWithoutButtons.Height})
-		scrollRPx, _, _, _ = imageInternal.GetPixelColor(img, 242, 2)
+		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
+		fmt.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
 
 		if scrollRPx > 26 {
 			scrollRPx = 26
 			for counter < maxCounter && scrollRPx < 50 {
 				counter, scrollRPx = checkAndScreenScroll(counter, 1)
 				if scrollRPx < 50 {
-					img, _ = screenshot.CaptureScreenshot(c.Screenshot.ItemOffersListWithoutButtons)
+					img = captureScreenShot()
 					screenshots = append(screenshots, img)
 				}
 			}
 
 			scrollRPx = 26
-			scripts.ClickCoordinates(port, c, c.Click.Scroll)
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Scroll.X, Y: marginY + c.Click.Scroll.Y})
 			for counter < maxCounter && scrollRPx < 50 {
 				counter, scrollRPx = checkAndClickScreenScroll(counter)
 				if scrollRPx < 50 {
-					img, _ = screenshot.CaptureScreenshot(c.Screenshot.ItemOffersListWithoutButtons)
+					img = captureScreenShot()
 					smallScreenshots = append(smallScreenshots, img)
 				}
 			}
@@ -126,9 +136,9 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	var clickItem = func(item config.Coordinates) {
 		scripts.ClickCoordinates(port, c, item)
-		combinedSaved := makeScreenShotsWithScroll()
+		combinedSaved := captureScreenShotsWithScroll()
 		if !combinedSaved {
-			screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 364})
+			saveScreenShot()
 		}
 
 		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
@@ -136,9 +146,9 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		columns, _ := imageInternal.FindNonBlackPixelCoordinatesInColumn(img, 35)
+		columns, _ := imageInternal.FindNonBlackPixelCoordinatesInColumn(img, marginX+58)
 		if len(columns) > 2 {
-			var ys = imageInternal.FindSegments(columns, 5)
+			var ys = imageInternal.FindSegments(columns, 10)
 
 			fmt.Printf("ys: %v\n", ys)
 
@@ -147,12 +157,12 @@ var Run = func(port *serial.Port, c *config.Config) {
 			}
 		}
 
-		// clickItem(config.Coordinates{X: marginX + c.Click.Item1.X, Y: marginY + c.Click.Item1.Y})
+		// clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
 	}
 
 	//берем в фокус и делаем скрин
 	scripts.ClickCoordinates(port, c, c.Click.Item1)
-	img, _ = screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 364})
+	img = saveScreenShot()
 	clickEveryItemAnsScreenShot(img)
 
 	// // берем в фокус и делаем скрин

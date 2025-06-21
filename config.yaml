@@ -55,31 +55,31 @@ click:
     y: 100
   item1:
     x: 125
-    y: 56
+    y: 55
   item2:
     x: 125
-    y: 155
+    y: 85
   item3:
     x: 124
-    y: 185
+    y: 115
   item4:
     x: 124
-    y: 215
+    y: 145
   item5:
     x: 124
-    y: 245
+    y: 175
   item6:
     x: 124
-    y: 275
+    y: 205
   item7:
     x: 124
-    y: 305
+    y: 235
   item8:
     x: 124
-    y: 335
+    y: 265
   item9:
     x: 124
-    y: 365
+    y: 295
   scroll:
-    x: 305
-    y: 426
+    x: 290
+    y: 354
