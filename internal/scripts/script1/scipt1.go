@@ -58,7 +58,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	var checkAndScreenScroll = func(counter int, x int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 325)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 315)
 		fmt.Printf("r: %v\n", r)
 		if r < 50 {
 			scripts.ScrollDown(port, c, x)
@@ -128,7 +128,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 			if err != nil {
 				return false
 			}
-			scripts.ScrollUp(port, c, counter)
+			scripts.ScrollUp(port, c, counter+5)
 			return true
 		}
 		return false
@@ -146,26 +146,22 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		columns, _ := imageInternal.FindNonBlackPixelCoordinatesInColumn(img, marginX+58)
-		if len(columns) > 2 {
-			var ys = imageInternal.FindSegments(columns, 8)
-
-			fmt.Printf("ys: %v\n", ys)
-
-			for _, y := range ys {
-				clickItem(config.Coordinates{Y: y + marginY - 5, X: marginX + 80})
+		points := imageInternal.FindItemPositionsByTextColor(img, 100)
+		if len(points) > 2 {
+			for _, point := range points {
+				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
 			}
 		}
 
 		// clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
 	}
 
-	// //берем в фокус и делаем скрин
+	//берем в фокус и делаем скрин
 	// scripts.ClickCoordinates(port, c, c.Click.Item1)
 	// img = saveScreenShot()
 	// clickEveryItemAnsScreenShot(img)
 
-	// берем в фокус и делаем скрин
+	// берем в фокус
 	scripts.ClickCoordinates(port, c, c.Click.Item1)
 
 	cycles := 0
@@ -202,11 +198,11 @@ var Run = func(port *serial.Port, c *config.Config) {
 			img = captureScreenShot()
 			clickEveryItemAnsScreenShot(img)
 			img = captureScreenShot()
-			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, c.Click.Button6.Y)
+			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
 			maxSixButtonClicks += 1
 		}
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
 
 		cycles += 1
