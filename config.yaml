@@ -36,23 +36,23 @@ click:
     x: 25
     y: 8
   button1:
-    x: 35
-    y: 100
+    x: 20
+    y: 27
   button2:
-    x: 62
-    y: 100
+    x: 50
+    y: 27
   button3:
-    x: 95
-    y: 100
+    x: 78
+    y: 27
   button4:
-    x: 120
-    y: 100
+    x: 108
+    y: 27
   button5:
-    x: 152
-    y: 100
+    x: 135
+    y: 27
   button6:
-    x: 180
-    y: 100
+    x: 163
+    y: 27
   item1:
     x: 125
     y: 55
@@ -82,4 +82,4 @@ click:
     y: 295
   scroll:
     x: 290
-    y: 354
+    y: 351
