@@ -67,7 +67,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var checkAndScreenScroll = func(counter int, x int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 315)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 320)
 		fmt.Printf("r: %v\n", r)
 		if r < 50 {
 			scripts.ScrollDown(port, c, x)
@@ -77,7 +77,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var checkAndClickScreenScroll = func(counter int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 340)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 342)
 		if r < 50 {
 			scripts.FastClick(port, c)
 		}
@@ -189,7 +189,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		points := imageInternal.FindItemPositionsByTextColor(img, 40)
+		points := imageInternal.FindItemPositionsByTextColor(img, 80)
 		if len(points) > 2 {
 			for _, point := range points {
 				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"encoding/base64"
 
@@ -48,6 +49,8 @@ type PageData struct {
 	PrevPage    int
 	NextPage    int
 	SearchQuery string
+	MinPrice    string
+	MaxPrice    string
 }
 
 func getDatabaseDSN() string {
@@ -106,6 +109,8 @@ func main() {
 		// Получаем параметры пагинации и поиска
 		pageStr := r.URL.Query().Get("page")
 		searchQuery := r.URL.Query().Get("search")
+		minPrice := r.URL.Query().Get("min_price")
+		maxPrice := r.URL.Query().Get("max_price")
 		page := 1
 		if pageStr != "" {
 			if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
@@ -120,19 +125,43 @@ func main() {
 		var countQuery, dataQuery string
 		var args []interface{}
 
-		if searchQuery != "" {
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
 			// Поиск по структурированным данным
 			countQuery = `SELECT COUNT(DISTINCT ocr.id) FROM ocr_results ocr 
 				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
-				WHERE si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?`
+				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
 			dataQuery = `SELECT DISTINCT ocr.id, ocr.image_path, ocr.image_data, ocr.ocr_text, ocr.debug_info, ocr.json_data, ocr.raw_text, ocr.created_at 
 				FROM ocr_results ocr 
 				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
-				WHERE si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ? 
-				ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
+				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
 
 			searchPattern := "%" + searchQuery + "%"
 			args = []interface{}{searchPattern, searchPattern, searchPattern, searchPattern}
+
+			// Добавляем фильтрацию по цене
+			if minPrice != "" || maxPrice != "" {
+				countQuery += ` AND (`
+				dataQuery += ` AND (`
+				priceConditions := []string{}
+				priceArgs := []interface{}{}
+
+				if minPrice != "" {
+					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) >= ?")
+					priceArgs = append(priceArgs, minPrice)
+				}
+
+				if maxPrice != "" {
+					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) <= ?")
+					priceArgs = append(priceArgs, maxPrice)
+				}
+
+				countQuery += strings.Join(priceConditions, " AND ") + ")"
+				dataQuery += strings.Join(priceConditions, " AND ") + ")"
+				args = append(args, priceArgs...)
+			}
+
+			countQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
+			dataQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
 		} else {
 			// Без поиска
 			countQuery = "SELECT COUNT(*) FROM ocr_results"
@@ -142,7 +171,7 @@ func main() {
 		// Получаем общее количество записей
 		var totalCount int
 		var countArgs []interface{}
-		if searchQuery != "" {
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
 			countArgs = args
 		}
 		err := db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
@@ -165,7 +194,7 @@ func main() {
 
 		// Получаем записи для текущей страницы
 		var rows *sql.Rows
-		if searchQuery != "" {
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
 			args = append(args, resultsPerPage, offset)
 			rows, err = db.Query(dataQuery, args...)
 		} else {
@@ -211,6 +240,8 @@ func main() {
 			PrevPage:    page - 1,
 			NextPage:    page + 1,
 			SearchQuery: searchQuery,
+			MinPrice:    minPrice,
+			MaxPrice:    maxPrice,
 		}
 
 		tmpl := `
@@ -243,7 +274,7 @@ func main() {
 					background: linear-gradient(135deg, #4CAF50, #45a049);
 					color: white;
 					padding: 15px;
-					text-align: center;
+					text-align: left;
 					margin: 0;
 					position: fixed;
 					top: 0;
@@ -251,13 +282,27 @@ func main() {
 					right: 0;
 					z-index: 1000;
 					box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+					display: flex;
+					align-items: center;
+					justify-content: space-between;
 				}
 				
-				.header h2 {
-					margin: 0 0 10px 0;
+				.header-title {
 					font-size: 1.5em;
 					font-weight: 300;
 					text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+					margin: 0;
+					flex-shrink: 0;
+				}
+				
+				.header-controls {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					max-width: 100%;
+					margin: 0 auto;
+					flex: 1;
+					max-width: 600px;
 				}
 				
 				.search-container {
@@ -266,6 +311,34 @@ func main() {
 					gap: 8px;
 					max-width: 100%;
 					margin: 0 auto;
+				}
+				
+				.filter-row {
+					display: flex;
+					gap: 8px;
+					align-items: center;
+				}
+				
+				.price-input {
+					flex: 1;
+					padding: 10px 12px;
+					border: none;
+					border-radius: 20px;
+					font-size: 14px;
+					outline: none;
+					box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+					transition: box-shadow 0.3s ease;
+					background: rgba(255,255,255,0.9);
+					color: #333;
+				}
+				
+				.price-input:focus {
+					box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+					background: white;
+				}
+				
+				.price-input::placeholder {
+					color: #999;
 				}
 				
 				.search-input {
@@ -897,6 +970,25 @@ func main() {
 					background-color: #f0f8ff;
 				}
 				
+				/* Выделение самого дешевого предмета */
+				.cheapest-item {
+					background-color: #e8f5e8 !important;
+					border-left: 4px solid #4CAF50 !important;
+					font-weight: 600;
+				}
+				
+				.cheapest-item td {
+					background-color: #e8f5e8 !important;
+				}
+				
+				.cheapest-item:hover {
+					background-color: #d4edda !important;
+				}
+				
+				.cheapest-item:hover td {
+					background-color: #d4edda !important;
+				}
+				
 				.detail-info-grid {
 					display: grid;
 					grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -949,14 +1041,20 @@ func main() {
 		<body>
 		<div class="container">
 			<div class="header">
-				<h2>👓 ШНЫРЬ v0.1</h2>
-				<form method="GET" action="/" class="search-container">
-					<input type="text" name="search" value="{{.SearchQuery}}" placeholder="Поиск по названию, владельцу, цене..." class="search-input">
-					<button type="submit" class="search-button">🔍 Поиск</button>
-					{{if .SearchQuery}}
-					<a href="/" class="clear-button">❌ Очистить</a>
-					{{end}}
-				</form>
+				<h2 class="header-title">👓 ШНЫРЬ v0.1</h2>
+				<div class="header-controls">
+					<form method="GET" action="/" class="search-container">
+						<input type="text" name="search" value="{{.SearchQuery}}" placeholder="Поиск по названию, владельцу, цене..." class="search-input">
+						<div class="filter-row">
+							<input type="number" name="min_price" value="{{.MinPrice}}" placeholder="Мин. цена" class="price-input" min="0" step="0.01">
+							<input type="number" name="max_price" value="{{.MaxPrice}}" placeholder="Макс. цена" class="price-input" min="0" step="0.01">
+							<button type="submit" class="search-button">🔍 Поиск</button>
+							{{if or .SearchQuery .MinPrice .MaxPrice}}
+							<a href="/" class="clear-button">❌ Очистить</a>
+							{{end}}
+						</div>
+					</form>
+				</div>
 			</div>
 			
 			<div class="content">
@@ -977,9 +1075,10 @@ func main() {
 					<th>ID</th>
 					<th>Screenshot</th>
 					<th>Structured Data</th>
+					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr onclick="openDetailModal('{{.RawText}}', '{{.CreatedAt}}', '{{base64encode .ImageData}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;">
+				<tr onclick="openDetailModal('{{.RawText}}', '{{.CreatedAt}}', '{{base64encode .ImageData}}', '{{.DebugInfo}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;">
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
@@ -994,7 +1093,7 @@ func main() {
 					<table>
 					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>
 					{{range .Items}}
-					<tr>
+					<tr class="cheapest-item-{{.Enhancement}}-{{.Price}}">
 					<td>{{.Title}}</td>
 					<td>{{.TitleShort}}</td>
 					<td>{{.Enhancement}}</td>
@@ -1009,6 +1108,7 @@ func main() {
 					<div class="no-data">No structured data</div>
 					{{end}}
 				</td>
+				<td class="date-cell">{{.CreatedAt}}</td>
 				</tr>
 				{{end}}
 				</table>
@@ -1016,8 +1116,8 @@ func main() {
 
 				<div class="pagination">
 					{{if .HasPrev}}
-						<a href="?page=1{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}">« Первая</a>
-						<a href="?page={{.PrevPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}">‹ Предыдущая</a>
+						<a href="?page=1{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}">« Первая</a>
+						<a href="?page={{.PrevPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}">‹ Предыдущая</a>
 					{{else}}
 						<span class="disabled">« Первая</span>
 						<span class="disabled">‹ Предыдущая</span>
@@ -1027,13 +1127,13 @@ func main() {
 						{{if eq $i $.CurrentPage}}
 							<span class="current">{{$i}}</span>
 						{{else}}
-							<a href="?page={{$i}}{{if $.SearchQuery}}&search={{$.SearchQuery}}{{end}}">{{$i}}</a>
+							<a href="?page={{$i}}{{if $.SearchQuery}}&search={{$.SearchQuery}}{{end}}{{if $.MinPrice}}&min_price={{$.MinPrice}}{{end}}{{if $.MaxPrice}}&max_price={{$.MaxPrice}}{{end}}">{{$i}}</a>
 						{{end}}
 					{{end}}
 					
 					{{if .HasNext}}
-						<a href="?page={{.NextPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}">Следующая ›</a>
-						<a href="?page={{.TotalPages}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}">Последняя »</a>
+						<a href="?page={{.NextPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}">Следующая ›</a>
+						<a href="?page={{.TotalPages}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}">Последняя »</a>
 					{{else}}
 						<span class="disabled">Следующая ›</span>
 						<span class="disabled">Последняя »</span>
@@ -1064,6 +1164,10 @@ func main() {
 					<div class="detail-text" id="detailText"></div>
 				</div>
 				<div class="detail-section">
+					<h3>🐛 Debug Info:</h3>
+					<div class="detail-text" id="detailDebugInfo"></div>
+				</div>
+				<div class="detail-section">
 					<h4>📋 Информация:</h4>
 					<div class="detail-info-grid" id="detailInfoGrid"></div>
 				</div>
@@ -1088,12 +1192,39 @@ func main() {
 				
 				// Создаем таблицу структурированных данных
 				if (hasItems && items.length > 0) {
+					// Находим самые дешевые предметы для каждого уровня улучшения
+					const enhancementGroups = {};
+					items.forEach(item => {
+						if (item.enhancement && item.price) {
+							const price = parseFloat(item.price.replace(/[^\d.]/g, ''));
+							if (!isNaN(price)) {
+								if (!enhancementGroups[item.enhancement]) {
+									enhancementGroups[item.enhancement] = [];
+								}
+								enhancementGroups[item.enhancement].push({...item, priceValue: price});
+							}
+						}
+					});
+					
+					// Находим самые дешевые предметы
+					const cheapestItems = new Set();
+					Object.values(enhancementGroups).forEach(group => {
+						if (group.length > 0) {
+							const cheapest = group.reduce((min, item) => 
+								item.priceValue < min.priceValue ? item : min
+							);
+							cheapestItems.add(cheapest);
+						}
+					});
+					
 					let tableHTML = '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 1.1em;">📋 Структурированные данные:</h4>';
 					tableHTML += '<table class="modal-structured-table">';
 					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>';
 					
 					items.forEach(item => {
-						tableHTML += '<tr>';
+						const isCheapest = cheapestItems.has(item);
+						const rowClass = isCheapest ? 'cheapest-item' : '';
+						tableHTML += '<tr class="' + rowClass + '">';
 						tableHTML += '<td>' + (item.title || '') + '</td>';
 						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
 						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
@@ -1135,13 +1266,17 @@ func main() {
 				}
 			});
 
-			function openDetailModal(text, info, imageData, hasItems, ...items) {
+			function openDetailModal(text, info, imageData, debugInfo, hasItems, ...items) {
 				const detailText = document.getElementById('detailText');
+				const detailDebugInfo = document.getElementById('detailDebugInfo');
 				const detailInfoGrid = document.getElementById('detailInfoGrid');
 				const detailImage = document.getElementById('detailImage');
 				
 				// Устанавливаем текст
 				detailText.textContent = text || 'Нет данных';
+				
+				// Устанавливаем debug info
+				detailDebugInfo.textContent = debugInfo || 'Нет debug информации';
 				
 				// Очищаем информацию
 				detailInfoGrid.innerHTML = '';
@@ -1197,6 +1332,45 @@ func main() {
 					closeDetailModal();
 				}
 			});
+			
+			// Функция для выделения самых дешевых предметов в главной таблице
+			function highlightCheapestItems() {
+				const structuredTables = document.querySelectorAll('.structured-table table');
+				structuredTables.forEach(table => {
+					const rows = table.querySelectorAll('tr:not(:first-child)'); // Исключаем заголовок
+					const enhancementGroups = {};
+					
+					// Группируем предметы по уровню улучшения
+					rows.forEach(row => {
+						const cells = row.querySelectorAll('td');
+						if (cells.length >= 4) {
+							const enhancement = cells[2].textContent.trim();
+							const price = cells[3].textContent.trim();
+							const priceValue = parseFloat(price.replace(/[^\d.]/g, ''));
+							
+							if (enhancement && !isNaN(priceValue)) {
+								if (!enhancementGroups[enhancement]) {
+									enhancementGroups[enhancement] = [];
+								}
+								enhancementGroups[enhancement].push({row, priceValue});
+							}
+						}
+					});
+					
+					// Находим и выделяем самые дешевые предметы
+					Object.values(enhancementGroups).forEach(group => {
+						if (group.length > 0) {
+							const cheapest = group.reduce((min, item) => 
+								item.priceValue < min.priceValue ? item : min
+							);
+							cheapest.row.classList.add('cheapest-item');
+						}
+					});
+				});
+			}
+			
+			// Вызываем функцию после загрузки страницы
+			document.addEventListener('DOMContentLoaded', highlightCheapestItems);
 		</script>
 		</body></html>`
 
