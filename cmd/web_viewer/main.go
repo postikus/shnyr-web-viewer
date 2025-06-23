@@ -787,6 +787,142 @@ func main() {
 					background-color: #f0f8ff;
 				}
 				
+				/* Модальное окно для подробной информации */
+				.detail-modal {
+					display: none;
+					position: fixed;
+					z-index: 2000;
+					left: 0;
+					top: 0;
+					width: 100%;
+					height: 100%;
+					background-color: rgba(0,0,0,0.9);
+					backdrop-filter: blur(5px);
+				}
+				
+				.detail-modal-content {
+					position: relative;
+					margin: 2% auto;
+					padding: 25px;
+					width: 95%;
+					height: 95%;
+					background: white;
+					border-radius: 12px;
+					box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+					overflow: auto;
+					animation: modalFadeIn 0.3s ease-out;
+				}
+				
+				.detail-section {
+					margin-bottom: 25px;
+					padding: 20px;
+					background: #f8f9fa;
+					border-radius: 8px;
+					border-left: 4px solid #4CAF50;
+				}
+				
+				.detail-section h3 {
+					margin: 0 0 15px 0;
+					color: #333;
+					font-size: 1.3em;
+					font-weight: 600;
+				}
+				
+				.detail-section h4 {
+					margin: 15px 0 10px 0;
+					color: #555;
+					font-size: 1.1em;
+					font-weight: 500;
+				}
+				
+				.detail-text {
+					background: white;
+					padding: 15px;
+					border-radius: 6px;
+					border: 1px solid #e0e0e0;
+					font-family: 'Courier New', monospace;
+					font-size: 0.9em;
+					line-height: 1.4;
+					max-height: 300px;
+					overflow: auto;
+					white-space: pre-wrap;
+					word-wrap: break-word;
+				}
+				
+				.detail-image {
+					max-width: 100%;
+					height: auto;
+					border-radius: 8px;
+					box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+					cursor: pointer;
+					transition: transform 0.2s ease;
+				}
+				
+				.detail-image:hover {
+					transform: scale(1.02);
+				}
+				
+				.detail-table {
+					width: 100%;
+					border-collapse: collapse;
+					margin-top: 10px;
+					background: white;
+					border-radius: 6px;
+					overflow: hidden;
+					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				}
+				
+				.detail-table th {
+					background: #4CAF50;
+					color: white;
+					padding: 12px 8px;
+					font-size: 0.9em;
+					font-weight: 600;
+					text-align: left;
+				}
+				
+				.detail-table td {
+					padding: 10px 8px;
+					border: 1px solid #e0e0e0;
+					font-size: 0.85em;
+					white-space: normal;
+					word-wrap: break-word;
+				}
+				
+				.detail-table tr:nth-child(even) {
+					background-color: #f8f9fa;
+				}
+				
+				.detail-table tr:hover {
+					background-color: #f0f8ff;
+				}
+				
+				.detail-info-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+					gap: 15px;
+					margin-top: 15px;
+				}
+				
+				.detail-info-item {
+					background: white;
+					padding: 12px;
+					border-radius: 6px;
+					border: 1px solid #e0e0e0;
+				}
+				
+				.detail-info-label {
+					font-weight: 600;
+					color: #555;
+					font-size: 0.85em;
+					margin-bottom: 5px;
+				}
+				
+				.detail-info-value {
+					color: #333;
+					font-size: 0.9em;
+				}
+				
 				/* Адаптивность модального окна */
 				@media (max-width: 768px) {
 					.modal-content {
@@ -847,7 +983,7 @@ func main() {
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr>
+				<tr onclick="openDetailModal('{{.RawText}}', '{{.CreatedAt}}', '{{base64encode .ImageData}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;">
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
@@ -945,6 +1081,25 @@ func main() {
 			</div>
 		</div>
 		
+		<!-- Модальное окно для подробной информации -->
+		<div id="detailModal" class="detail-modal">
+			<div class="detail-modal-content">
+				<span class="close-modal" onclick="closeDetailModal()">&times;</span>
+				<div class="detail-section">
+					<h3>📋 Структурированные данные:</h3>
+					<div class="detail-text" id="detailText"></div>
+				</div>
+				<div class="detail-section">
+					<h4>📋 Информация:</h4>
+					<div class="detail-info-grid" id="detailInfoGrid"></div>
+				</div>
+				<div class="detail-section">
+					<h4>📋 Изображение:</h4>
+					<img id="detailImage" class="detail-image" src="" alt="Full size image" onclick="closeDetailModal()">
+				</div>
+			</div>
+		</div>
+		
 		<script>
 			function openImageModal(imageData, id, info, hasItems, ...items) {
 				const modal = document.getElementById('imageModal');
@@ -1003,6 +1158,69 @@ func main() {
 			document.addEventListener('keydown', function(e) {
 				if (e.key === 'Escape') {
 					closeImageModal();
+				}
+			});
+
+			function openDetailModal(text, info, imageData, hasItems, ...items) {
+				const detailText = document.getElementById('detailText');
+				const detailInfoGrid = document.getElementById('detailInfoGrid');
+				const detailImage = document.getElementById('detailImage');
+				
+				// Устанавливаем текст
+				detailText.textContent = text || 'Нет данных';
+				
+				// Очищаем информацию
+				detailInfoGrid.innerHTML = '';
+				
+				// Добавляем информацию о записи
+				if (info) {
+					const infoItem = document.createElement('div');
+					infoItem.className = 'detail-info-item';
+					infoItem.innerHTML = '<div class="detail-info-label">Дата создания:</div><div class="detail-info-value">' + info + '</div>';
+					detailInfoGrid.appendChild(infoItem);
+				}
+				
+				// Добавляем информацию о предметах
+				if (hasItems && items.length > 0) {
+					items.forEach((item, index) => {
+						const itemInfo = document.createElement('div');
+						itemInfo.className = 'detail-info-item';
+						itemInfo.innerHTML = '<div class="detail-info-label">Предмет ' + (index + 1) + ':</div><div class="detail-info-value"><strong>Название:</strong> ' + (item.title || 'Не указано') + '<br><strong>Краткое название:</strong> ' + (item.titleShort || 'Не указано') + '<br><strong>Улучшение:</strong> ' + (item.enhancement || 'Не указано') + '<br><strong>Цена:</strong> ' + (item.price || 'Не указано') + '<br><strong>Пакет:</strong> ' + (item.package ? '✔️ Да' : '❌ Нет') + '<br><strong>Владелец:</strong> ' + (item.owner || 'Не указано') + '</div>';
+						detailInfoGrid.appendChild(itemInfo);
+					});
+				}
+				
+				// Загружаем изображение
+				if (imageData) {
+					detailImage.src = 'data:image/png;base64,' + imageData;
+					detailImage.style.display = 'block';
+				} else {
+					detailImage.style.display = 'none';
+				}
+				
+				// Показываем модальное окно
+				const detailModal = document.getElementById('detailModal');
+				detailModal.style.display = 'block';
+				document.body.style.overflow = 'hidden';
+			}
+			
+			function closeDetailModal() {
+				const detailModal = document.getElementById('detailModal');
+				detailModal.style.display = 'none';
+				document.body.style.overflow = 'auto';
+			}
+			
+			// Закрытие модального окна при клике вне информации
+			document.getElementById('detailModal').addEventListener('click', function(e) {
+				if (e.target === this) {
+					closeDetailModal();
+				}
+			});
+			
+			// Закрытие модального окна по клавише Escape
+			document.addEventListener('keydown', function(e) {
+				if (e.key === 'Escape') {
+					closeDetailModal();
 				}
 			});
 		</script>
