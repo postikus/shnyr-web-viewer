@@ -46,13 +46,33 @@ func main() {
 		ocr_text LONGTEXT,
 		debug_info LONGTEXT,
 		json_data LONGTEXT,
+		raw_text LONGTEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 	_, err = db2.Exec(tableSQL)
 	if err != nil {
-		log.Fatalf("Ошибка создания таблицы: %v", err)
+		log.Fatalf("Ошибка создания таблицы ocr_results: %v", err)
 	}
 	fmt.Println("Таблица ocr_results создана")
+
+	// Создаём таблицу для структурированных данных
+	structuredTableSQL := `CREATE TABLE structured_items (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		ocr_result_id INT,
+		title VARCHAR(255) NOT NULL,
+		title_short VARCHAR(255),
+		enhancement VARCHAR(10),
+		price VARCHAR(50) NOT NULL,
+		package BOOLEAN DEFAULT FALSE,
+		owner VARCHAR(255),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
+	)`
+	_, err = db2.Exec(structuredTableSQL)
+	if err != nil {
+		log.Fatalf("Ошибка создания таблицы structured_items: %v", err)
+	}
+	fmt.Println("Таблица structured_items создана")
 
 	fmt.Println("Инициализация базы завершена!")
 }

@@ -157,7 +157,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 				fmt.Println(result)
 
 				// Парсим результат OCR
-				debugInfo, jsonData := ocr.ParseOCRResult(result)
+				debugInfo, jsonData, rawText := ocr.ParseOCRResult(result)
 
 				// Конвертируем изображение в байты
 				imageBytes, err := imageToBytes(croppedCombinedImg)
@@ -165,7 +165,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 					log.Printf("Ошибка конвертации изображения: %v", err)
 				} else {
 					// Сохраняем результат в базу данных
-					err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, imageBytes, c)
+					_, err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, rawText, imageBytes, c)
 					if err != nil {
 						log.Printf("Ошибка сохранения в БД: %v", err)
 					}
@@ -200,65 +200,65 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 	}
 
 	// берем в фокус и делаем скрин
-	scripts.ClickCoordinates(port, c, c.Click.Item1)
-	img = captureScreenShot()
-	clickEveryItemAnsScreenShot(img)
-
-	// // берем в фокус
 	// scripts.ClickCoordinates(port, c, c.Click.Item1)
-
-	// cycles := 0
-	// for cycles < 1 {
-	// 	img := captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
-
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
 	// img = captureScreenShot()
 	// clickEveryItemAnsScreenShot(img)
 
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-	// img = captureScreenShot()
-	// clickEveryItemAnsScreenShot(img)
+	// берем в фокус
+	scripts.ClickCoordinates(port, c, c.Click.Item1)
 
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-	// img = captureScreenShot()
-	// clickEveryItemAnsScreenShot(img)
+	cycles := 0
+	for cycles < 1 {
+		img := captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-	// img = captureScreenShot()
-	// clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// img = captureScreenShot()
-	// clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// img = captureScreenShot()
-	// SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// maxSixButtonClicks := 0
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+		// img = captureScreenShot()
+		// clickEveryItemAnsScreenShot(img)
 
-	// for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
-	// 	img = captureScreenShot()
-	// 	SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// 	maxSixButtonClicks += 1
-	// }
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+		// img = captureScreenShot()
+		// clickEveryItemAnsScreenShot(img)
 
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-	// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+		// img = captureScreenShot()
+		// clickEveryItemAnsScreenShot(img)
 
-	// 	cycles += 1
-	// }
+		// img = captureScreenShot()
+		// SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+		// maxSixButtonClicks := 0
+
+		// for SixButtonPx > 30 && maxSixButtonClicks < 50 {
+		// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+		// 	img = captureScreenShot()
+		// 	clickEveryItemAnsScreenShot(img)
+		// 	img = captureScreenShot()
+		// 	SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+		// 	maxSixButtonClicks += 1
+		// }
+
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+
+		cycles += 1
+	}
 
 }
 
 // saveOCRResultToDB сохраняет результат OCR в базу данных
-func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonData string, imageData []byte, cfg *config.Config) error {
+func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config) (int, error) {
 	// Проверяем настройку сохранения в БД
 	if cfg.SaveToDB != 1 {
 		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
-		return nil
+		return 0, nil
 	}
 
 	// Создаем таблицу, если она не существует
@@ -270,23 +270,38 @@ func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonD
 		ocr_text LONGTEXT,
 		debug_info LONGTEXT,
 		json_data LONGTEXT,
+		raw_text LONGTEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 
 	_, err := db.Exec(createTableSQL)
 	if err != nil {
-		return fmt.Errorf("ошибка создания таблицы: %v", err)
+		return 0, fmt.Errorf("ошибка создания таблицы: %v", err)
 	}
 
 	// Вставляем результат OCR с изображением
-	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data) VALUES (?, ?, ?, ?, ?)`
-	_, err = db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData)
+	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data, raw_text) VALUES (?, ?, ?, ?, ?, ?)`
+	result, err := db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData, rawText)
 	if err != nil {
-		return fmt.Errorf("ошибка вставки данных: %v", err)
+		return 0, fmt.Errorf("ошибка вставки данных: %v", err)
 	}
 
-	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s", imagePath)
-	return nil
+	// Получаем ID вставленной записи
+	ocrResultID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения ID записи: %v", err)
+	}
+
+	// Сохраняем структурированные данные
+	if jsonData != "" {
+		err = ocr.SaveStructuredData(db, int(ocrResultID), jsonData)
+		if err != nil {
+			log.Printf("Ошибка сохранения структурированных данных: %v", err)
+		}
+	}
+
+	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
+	return int(ocrResultID), nil
 }
 
 // imageToBytes конвертирует изображение в байты в формате PNG

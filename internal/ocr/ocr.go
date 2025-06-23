@@ -1,10 +1,44 @@
 package ocr
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 )
+
+// StructuredItem представляет один элемент из structured_data
+type StructuredItem struct {
+	Title       string `json:"title"`
+	TitleShort  string `json:"title_short"`
+	Enhancement string `json:"enhancement"`
+	Price       string `json:"price"`
+	Package     bool   `json:"package"`
+	Owner       string `json:"owner"`
+}
+
+// OCRJSONResult представляет структуру JSON ответа
+type OCRJSONResult struct {
+	ImageFile  string `json:"image_file"`
+	Processing struct {
+		Enlargement         string `json:"enlargement"`
+		Grayscale           bool   `json:"grayscale"`
+		Denoising           string `json:"denoising"`
+		ContrastEnhancement string `json:"contrast_enhancement"`
+		Binarization        string `json:"binarization"`
+		OCREngine           string `json:"ocr_engine"`
+		OCRLanguages        string `json:"ocr_languages"`
+		OCRMode             string `json:"ocr_mode"`
+	} `json:"processing"`
+	TextRecognition struct {
+		Success        bool             `json:"success"`
+		RawText        string           `json:"raw_text"`
+		StructuredData []StructuredItem `json:"structured_data"`
+		Confidence     string           `json:"confidence"`
+	} `json:"text_recognition"`
+}
 
 // RunOCR запускает внешний cpp_ocr.exe и возвращает распознанный текст
 func RunOCR(imagePath string) (string, error) {
@@ -17,8 +51,21 @@ func RunOCR(imagePath string) (string, error) {
 	return string(output), nil
 }
 
-// ParseOCRResult парсит результат OCR и извлекает debug информацию и JSON
-func ParseOCRResult(ocrResult string) (debugInfo, jsonData string) {
+// fixMalformedJSON исправляет JSON с отсутствующими запятыми в массиве structured_data
+func fixMalformedJSON(jsonData string) string {
+	// Ищем паттерн: } { в массиве structured_data
+	// Это означает отсутствующую запятую между объектами
+	pattern := regexp.MustCompile(`(\s*}\s*)(\s*{\s*"title":)`)
+	replacement := `$1,$2`
+
+	// Применяем замену
+	fixedJSON := pattern.ReplaceAllString(jsonData, replacement)
+
+	return fixedJSON
+}
+
+// ParseOCRResult парсит результат OCR и извлекает debug информацию, JSON и raw_text
+func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 	// Ищем маркеры JSON
 	jsonStart := "=== JSON START ==="
 	jsonEnd := "=== JSON END ==="
@@ -33,11 +80,67 @@ func ParseOCRResult(ocrResult string) (debugInfo, jsonData string) {
 		// Извлекаем JSON (между маркерами)
 		jsonStartPos := startIndex + len(jsonStart)
 		jsonData = strings.TrimSpace(ocrResult[jsonStartPos:endIndex])
+
+		// Исправляем malformed JSON
+		jsonData = fixMalformedJSON(jsonData)
+
+		// Извлекаем raw_text из JSON
+		var ocrResult OCRJSONResult
+		if err := json.Unmarshal([]byte(jsonData), &ocrResult); err == nil {
+			rawText = ocrResult.TextRecognition.RawText
+		}
 	} else {
 		// Если маркеры не найдены, всё считаем debug информацией
 		debugInfo = ocrResult
 		jsonData = ""
+		rawText = ""
 	}
 
-	return debugInfo, jsonData
+	return debugInfo, jsonData, rawText
+}
+
+// SaveStructuredData сохраняет структурированные данные в базу данных
+func SaveStructuredData(db *sql.DB, ocrResultID int, jsonData string) error {
+	if jsonData == "" {
+		return nil // Нет данных для сохранения
+	}
+
+	// Парсим JSON
+	var ocrResult OCRJSONResult
+	err := json.Unmarshal([]byte(jsonData), &ocrResult)
+	if err != nil {
+		return fmt.Errorf("ошибка парсинга JSON: %v", err)
+	}
+
+	// Создаем таблицу, если она не существует
+	createTableSQL := `CREATE TABLE IF NOT EXISTS structured_items (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		ocr_result_id INT,
+		title VARCHAR(255) NOT NULL,
+		title_short VARCHAR(255),
+		enhancement VARCHAR(10),
+		price VARCHAR(50) NOT NULL,
+		package BOOLEAN DEFAULT FALSE,
+		owner VARCHAR(255),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
+	)`
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("ошибка создания таблицы structured_items: %v", err)
+	}
+
+	// Сохраняем каждый элемент
+	for _, item := range ocrResult.TextRecognition.StructuredData {
+		insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner) VALUES (?, ?, ?, ?, ?, ?, ?)`
+		_, err = db.Exec(insertSQL, ocrResultID, item.Title, item.TitleShort, item.Enhancement, item.Price, item.Package, item.Owner)
+		if err != nil {
+			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
+		}
+	}
+
+	fmt.Printf("Сохранено %d структурированных элементов для OCR результата ID: %d\n",
+		len(ocrResult.TextRecognition.StructuredData), ocrResultID)
+	return nil
 }

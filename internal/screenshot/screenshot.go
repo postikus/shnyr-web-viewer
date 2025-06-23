@@ -107,7 +107,7 @@ func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Ima
 			fmt.Printf("OCR результат:\n%s\n", ocrResult)
 
 			// Парсим результат OCR
-			debugInfo, jsonData := ocr.ParseOCRResult(ocrResult)
+			debugInfo, jsonData, rawText := ocr.ParseOCRResult(ocrResult)
 
 			// Конвертируем изображение в байты
 			imageBytes, err := imageToBytes(croppedImg)
@@ -115,7 +115,7 @@ func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Ima
 				log.Printf("Ошибка конвертации изображения: %v", err)
 			} else {
 				// Сохраняем результат в базу данных
-				err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, imageBytes, cfg)
+				_, err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, rawText, imageBytes, cfg)
 				if err != nil {
 					log.Printf("Ошибка сохранения в БД: %v", err)
 				}
@@ -181,15 +181,15 @@ func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
 }
 
 // saveOCRResultToDB сохраняет результат OCR в базу данных
-func saveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, imageData []byte, config *config.Config) error {
+func saveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData, rawText string, imageData []byte, cfg *config.Config) (int, error) {
 	if db == nil {
-		return fmt.Errorf("база данных не инициализирована")
+		return 0, fmt.Errorf("база данных не инициализирована")
 	}
 
 	// Проверяем настройку сохранения в БД
-	if config.SaveToDB != 1 {
-		log.Printf("Сохранение в БД отключено (save_to_db = %d)", config.SaveToDB)
-		return nil
+	if cfg.SaveToDB != 1 {
+		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
+		return 0, nil
 	}
 
 	// Создаем таблицу, если она не существует
@@ -201,23 +201,38 @@ func saveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, 
 		ocr_text LONGTEXT,
 		debug_info LONGTEXT,
 		json_data LONGTEXT,
+		raw_text LONGTEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 
 	_, err := db.Exec(createTableSQL)
 	if err != nil {
-		return fmt.Errorf("ошибка создания таблицы: %v", err)
+		return 0, fmt.Errorf("ошибка создания таблицы: %v", err)
 	}
 
 	// Вставляем результат OCR с изображением
-	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data) VALUES (?, ?, ?, ?, ?)`
-	_, err = db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData)
+	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data, raw_text) VALUES (?, ?, ?, ?, ?, ?)`
+	result, err := db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData, rawText)
 	if err != nil {
-		return fmt.Errorf("ошибка вставки данных: %v", err)
+		return 0, fmt.Errorf("ошибка вставки данных: %v", err)
 	}
 
-	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s", imagePath)
-	return nil
+	// Получаем ID вставленной записи
+	ocrResultID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения ID записи: %v", err)
+	}
+
+	// Сохраняем структурированные данные
+	if jsonData != "" {
+		err = ocr.SaveStructuredData(db, int(ocrResultID), jsonData)
+		if err != nil {
+			log.Printf("Ошибка сохранения структурированных данных: %v", err)
+		}
+	}
+
+	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
+	return int(ocrResultID), nil
 }
 
 // imageToBytes конвертирует изображение в байты в формате PNG
