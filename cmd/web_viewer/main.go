@@ -382,6 +382,7 @@ func main() {
 				.content {
 					padding: 30px;
 					margin-top: 120px; /* Отступ для фиксированной шапки */
+					margin-bottom: 100px; /* Отступ для фиксированной пагинации */
 				}
 				table {
 					width: 100%;
@@ -461,11 +462,20 @@ func main() {
 					font-weight: bold !important;
 				}
 				.pagination {
+					position: fixed;
+					bottom: 0;
+					left: 0;
+					right: 0;
 					display: flex;
 					justify-content: center;
 					align-items: center;
 					margin-top: 30px;
 					gap: 10px;
+					background: #fff;
+					padding: 15px;
+					border-top: 2px solid #eee;
+					z-index: 1000;
+					flex-wrap: wrap;
 				}
 				.pagination a {
 					padding: 10px 15px;
@@ -808,6 +818,43 @@ func main() {
 				@media (max-width: 600px) {
 					.ocr-image {
 						max-width: 45px;
+					}
+					.content {
+						margin-top: 170px;
+						margin-bottom: 120px;
+						padding: 15px;
+					}
+					
+					.pagination {
+						padding: 10px;
+						gap: 5px;
+					}
+					
+					.pagination a,
+					.pagination span {
+						padding: 6px 8px;
+						font-size: 11px;
+						min-width: auto;
+					}
+				}
+				
+				/* Очень маленькие экраны */
+				@media (max-width: 480px) {
+					.content {
+						margin-top: 230px;
+						margin-bottom: 140px;
+						padding: 10px;
+					}
+					
+					.pagination {
+						padding: 8px;
+						gap: 3px;
+					}
+					
+					.pagination a,
+					.pagination span {
+						padding: 5px 6px;
+						font-size: 10px;
 					}
 				}
 			</style>
