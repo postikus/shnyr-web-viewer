@@ -798,6 +798,18 @@ func main() {
 						min-width: 500px;
 					}
 				}
+				.ocr-image {
+					max-width: 220px;
+					width: 100%;
+					height: auto;
+					display: block;
+					margin: 0 auto;
+				}
+				@media (max-width: 600px) {
+					.ocr-image {
+						max-width: 45px;
+					}
+				}
 			</style>
 		</head>
 		<body>
@@ -834,21 +846,12 @@ func main() {
 				<div class="mobile-table">
 				<table>
 				<tr>
-					<th>ID</th>
-					<th>Screenshot</th>
 					<th>Structured Data</th>
+					<th>Screenshot</th>
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
 				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
-				<td class="id-cell">{{.ID}}</td>
-				<td class="image-cell">
-					{{if .ImageData}}
-					<img src="data:image/png;base64,{{base64encode .ImageData}}" style="cursor: pointer;" />
-					{{else}}
-					<div class="no-data">No image data</div>
-					{{end}}
-				</td>
 				<td>
 					{{if .Items}}
 					<div class="structured-table">
@@ -868,6 +871,13 @@ func main() {
 					</div>
 					{{else}}
 					<div class="no-data">No structured data</div>
+					{{end}}
+				</td>
+				<td class="image-cell">
+					{{if .ImageData}}
+					<img src="data:image/png;base64,{{base64encode .ImageData}}" class="ocr-image" style="cursor: pointer;" />
+					{{else}}
+					<div class="no-data">No image data</div>
 					{{end}}
 				</td>
 				<td class="date-cell">{{.CreatedAt}}</td>
