@@ -975,19 +975,15 @@ func main() {
 				<table>
 				<tr>
 					<th>ID</th>
-					<th>Изображение</th>
+					<th>Screenshot</th>
 					<th>Structured Data</th>
-					<th>Raw Text</th>
-					<th>Debug Info</th>
-					<th>JSON Data</th>
-					<th>Created</th>
 				</tr>
 				{{range .Results}}
 				<tr onclick="openDetailModal('{{.RawText}}', '{{.CreatedAt}}', '{{base64encode .ImageData}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;">
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
-					<img src="data:image/png;base64,{{base64encode .ImageData}}" onclick="openImageModal('{{base64encode .ImageData}}', '{{.ID}}', '{{.CreatedAt}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;" />
+					<img src="data:image/png;base64,{{base64encode .ImageData}}" style="cursor: pointer;" />
 					{{else}}
 					<div class="no-data">No image data</div>
 					{{end}}
@@ -1013,28 +1009,6 @@ func main() {
 					<div class="no-data">No structured data</div>
 					{{end}}
 				</td>
-				<td class="text-cell">
-					{{if .RawText}}
-					<pre>{{.RawText}}</pre>
-					{{else}}
-					<div class="no-data">No raw text</div>
-					{{end}}
-				</td>
-				<td class="text-cell">
-					{{if .DebugInfo}}
-					<pre>{{.DebugInfo}}</pre>
-					{{else}}
-					<div class="no-data">No debug info</div>
-					{{end}}
-				</td>
-				<td class="text-cell">
-					{{if .JSONData}}
-					<pre>{{.JSONData}}</pre>
-					{{else}}
-					<div class="no-data">No JSON data</div>
-					{{end}}
-				</td>
-				<td class="date-cell">{{.CreatedAt}}</td>
 				</tr>
 				{{end}}
 				</table>
