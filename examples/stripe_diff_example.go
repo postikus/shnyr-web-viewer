@@ -23,12 +23,12 @@ func loadImage(path string) image.Image {
 }
 
 func main() {
-	img1 := loadImage("last_prev.png")
-	img2 := loadImage("last.png")
+	img1 := loadImage("../last_prev.png")
+	img2 := loadImage("../last.png")
 
-	diff, err := customimage.StripeDistanceDiff(img1, img2, 297, 26)
+	diff, err := customimage.LastColorStripeDistanceDiff(img1, img2, 26, 20)
 	if err != nil {
 		log.Fatalf("Ошибка при вычислении разницы: %v", err)
 	}
-	fmt.Printf("Разница расстояний до полоски (last - last_prev): %d\n", diff)
+	fmt.Printf("Разница по последней горизонтальной полоске (last - last_prev): %d\n", diff)
 }
