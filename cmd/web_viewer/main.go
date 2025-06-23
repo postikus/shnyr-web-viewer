@@ -904,16 +904,16 @@ func main() {
 					{{if .Items}}
 					<div class="structured-table">
 					<table>
-					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th><th>Count</th></tr>
+					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th></tr>
 					{{range .Items}}
 					<tr class="cheapest-item-{{.Enhancement}}-{{.Price}}">
 					<td>{{.Title}}</td>
 					<td>{{.TitleShort}}</td>
 					<td>{{.Enhancement}}</td>
 					<td>{{formatPrice .Price}}</td>
+					<td>{{.Count}}</td>
 					<td>{{if .Package}}✔️{{end}}</td>
 					<td>{{.Owner}}</td>
-					<td>{{.Count}}</td>
 					</tr>
 					{{end}}
 					</table>
@@ -1045,7 +1045,7 @@ func main() {
 					
 					let tableHTML = '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 1.1em;">📋 Структурированные данные:</h4>';
 					tableHTML += '<table class="modal-structured-table">';
-					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th><th>Count</th></tr>';
+					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th></tr>';
 					
 					items.forEach(item => {
 						const isCheapest = cheapestItems.has(item);
@@ -1055,9 +1055,9 @@ func main() {
 						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
 						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
 						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
+						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
-						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					
@@ -1185,7 +1185,7 @@ func main() {
 					});
 					
 					let tableHTML = '<table class="structured-table">';
-					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Пакет</th><th>Владелец</th><th>Количество</th></tr></thead>';
+					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Количество</th><th>Пакет</th><th>Владелец</th></tr></thead>';
 					tableHTML += '<tbody>';
 					
 					items.forEach(item => {
@@ -1196,9 +1196,9 @@ func main() {
 						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
 						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
 						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
+						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '❌') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
-						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					
@@ -1271,10 +1271,10 @@ func main() {
 					// Группируем предметы по уровню улучшения и package
 					rows.forEach(function(row, rowIndex) {
 						const cells = row.querySelectorAll('td');
-						if (cells.length >= 5) {
+						if (cells.length >= 6) {
 							const enhancement = cells[2].textContent.trim();
 							const price = cells[3].textContent.trim();
-							const package = cells[4].textContent.trim();
+							const package = cells[5].textContent.trim();
 							const priceValue = parseFloat(price.replace(/[^\d]/g, ''));
 							
 							console.log('Row ' + rowIndex + ': enhancement="' + enhancement + '", price="' + price + '", package="' + package + '", priceValue=' + priceValue);
