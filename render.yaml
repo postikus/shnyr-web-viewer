@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: shnyr-web-viewer
+    env: docker
+    plan: free
+    buildCommand: docker build -t shnyr-web-viewer .
+    startCommand: docker run -p $PORT:8080 shnyr-web-viewer
+    envVars:
+      - key: PORT
+        value: 8080
+    healthCheckPath: /
+    autoDeploy: true 

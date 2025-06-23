@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+
+# Documentation
+README.md
+*.md
+
+# Images and data
+imgs/
+data/
+*.png
+*.jpg
+*.jpeg
+
+# Config files that might contain sensitive data
+config.yaml
+
+# Vendor (will be downloaded during build)
+vendor/ 

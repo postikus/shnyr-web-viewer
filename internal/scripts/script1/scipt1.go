@@ -220,17 +220,17 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		img = captureScreenShot()
 		clickEveryItemAnsScreenShot(img)
 
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-		// img = captureScreenShot()
-		// clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-		// img = captureScreenShot()
-		// clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-		// img = captureScreenShot()
-		// clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
 		// img = captureScreenShot()
 		// SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
