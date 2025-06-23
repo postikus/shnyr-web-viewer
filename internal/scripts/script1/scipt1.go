@@ -60,7 +60,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return img
 	}
 
-	var _ = func() image.Image {
+	var SaveScreenshotFull = func() image.Image {
 		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
 		return img
 	}
@@ -99,7 +99,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		img := captureScreenShot()
 		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, buttonY)
 		fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
-		return buttonRPx == 214
+		return buttonRPx == 86
 	}
 
 	// Функция для выполнения полного цикла скриншотов и OCR
@@ -221,11 +221,15 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 		// Проверяем наличие всех кнопок
 		fmt.Println("🔍 Проверяем наличие кнопок...")
+		SaveScreenshotFull()
 		button2Active := checkButtonActive(c.Click.Button2.X, c.Click.Button2.Y, "listButton2")
 		button3Active := checkButtonActive(c.Click.Button3.X, c.Click.Button3.Y, "listButton3")
+		button4Active := checkButtonActive(c.Click.Button4.X, c.Click.Button4.Y, "listButton4")
+		button5Active := checkButtonActive(c.Click.Button5.X, c.Click.Button5.Y, "listButton5")
+		button6Active := checkButtonActive(c.Click.Button6.X, c.Click.Button6.Y, "listButton6")
 
-		fmt.Printf("📋 Статус кнопок: Button2=%v, Button3=%v\n",
-			button2Active, button3Active)
+		fmt.Printf("📋 Статус кнопок: Button2=%v, Button3=%v, Button4=%v, Button5=%v, Button6=%v\n",
+			button2Active, button3Active, button4Active, button5Active, button6Active)
 
 		// Выполняем основной цикл скриншотов и OCR (без нажатия кнопок)
 		fmt.Println("🔄 Выполняем основной цикл скриншотов и OCR...")
@@ -272,6 +276,45 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 			fmt.Println("⏭️ Button3 неактивен, пропускаем")
 		}
 
+		if button4Active {
+			fmt.Println("🔘 Кликаем по Button4...")
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+			err := performScreenshotAndOCR(true)
+			if err != nil {
+				fmt.Printf("❌ Ошибка при обработке Button4: %v\n", err)
+				return false
+			}
+			fmt.Println("✅ Button4 обработан успешно")
+		} else {
+			fmt.Println("⏭️ Button4 неактивен, пропускаем")
+		}
+
+		if button5Active {
+			fmt.Println("🔘 Кликаем по Button5...")
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+			err := performScreenshotAndOCR(true)
+			if err != nil {
+				fmt.Printf("❌ Ошибка при обработке Button5: %v\n", err)
+				return false
+			}
+			fmt.Println("✅ Button5 обработан успешно")
+		} else {
+			fmt.Println("⏭️ Button5 неактивен, пропускаем")
+		}
+
+		if button6Active {
+			fmt.Println("🔘 Кликаем по Button6...")
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+			err := performScreenshotAndOCR(true)
+			if err != nil {
+				fmt.Printf("❌ Ошибка при обработке Button6: %v\n", err)
+				return false
+			}
+			fmt.Println("✅ Button6 обработан успешно")
+		} else {
+			fmt.Println("⏭️ Button6 неактивен, пропускаем")
+		}
+
 		// Кликаем Back только после последней существующей кнопки
 		fmt.Println("🔙 Кликаем по кнопке Back...")
 		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
@@ -292,73 +335,73 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 	}
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
-		// прокликиваем первую страницу
-		points := imageInternal.FindItemPositionsByTextColor(img, 80)
-		fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
-		if len(points) > 2 {
-			fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
-			for i, point := range points {
-				fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
-				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
-			}
-		} else {
-			fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
-		}
+		// // прокликиваем первую страницу
+		// points := imageInternal.FindItemPositionsByTextColor(img, 80)
+		// fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
+		// if len(points) > 2 {
+		// 	fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
+		// 	for i, point := range points {
+		// 		fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
+		// 		clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
+		// 	}
+		// } else {
+		// 	fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
+		// }
 
-		// clickItem(config.Coordinates{X: marginX + c.Click.Item5.X, Y: marginY + c.Click.Item5.Y})
+		clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
 	}
 
-	// // берем в фокус и делаем скрин
-	// scripts.ClickCoordinates(port, c, c.Click.Item1)
-	// img = captureScreenShot()
-	// clickEveryItemAnsScreenShot(img)
-
-	// берем в фокус
+	// берем в фокус и делаем скрин
 	scripts.ClickCoordinates(port, c, c.Click.Item1)
+	img = captureScreenShot()
+	clickEveryItemAnsScreenShot(img)
 
-	cycles := 0
-	for cycles < 2 {
-		img := captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// // берем в фокус
+	// scripts.ClickCoordinates(port, c, c.Click.Item1)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// cycles := 0
+	// for cycles < 2 {
+	// 	img := captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		img = captureScreenShot()
-		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-		maxSixButtonClicks := 0
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
 
-		for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-			img = captureScreenShot()
-			clickEveryItemAnsScreenShot(img)
-			img = captureScreenShot()
-			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-			maxSixButtonClicks += 1
-		}
+	// 	img = captureScreenShot()
+	// 	SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+	// 	maxSixButtonClicks := 0
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+	// 	for SixButtonPx > 30 && maxSixButtonClicks < 50 {
+	// 		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+	// 		img = captureScreenShot()
+	// 		clickEveryItemAnsScreenShot(img)
+	// 		img = captureScreenShot()
+	// 		SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+	// 		maxSixButtonClicks += 1
+	// 	}
 
-		cycles += 1
-	}
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+	// 	// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+
+	// 	cycles += 1
+	// }
 
 }
 

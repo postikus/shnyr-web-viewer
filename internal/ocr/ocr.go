@@ -165,8 +165,15 @@ func SaveStructuredData(db *sql.DB, ocrResultID int, jsonData string) error {
 
 	// Сохраняем каждый элемент
 	for _, item := range ocrResult.TextRecognition.StructuredData {
+		// Устанавливаем "0" для пустого enhancement
+		enhancement := item.Enhancement
+		if enhancement == "" {
+			enhancement = "0"
+			fmt.Printf("🔧 Установлен enhancement='0' для предмета: %s\n", item.Title)
+		}
+
 		insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner) VALUES (?, ?, ?, ?, ?, ?, ?)`
-		_, err = db.Exec(insertSQL, ocrResultID, item.Title, item.TitleShort, item.Enhancement, item.Price, item.Package, item.Owner)
+		_, err = db.Exec(insertSQL, ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner)
 		if err != nil {
 			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
 		}
