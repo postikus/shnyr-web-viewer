@@ -7,6 +7,7 @@ import (
 	"log"
 	"octopus/internal/config"
 	imageInternal "octopus/internal/image"
+	"octopus/internal/ocr"
 	"octopus/internal/screen"
 	"octopus/internal/screenshot"
 	"octopus/internal/scripts"
@@ -56,9 +57,14 @@ var Run = func(port *serial.Port, c *config.Config) {
 		return img
 	}
 
+	var _ = func() image.Image {
+		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
+		return img
+	}
+
 	var checkAndScreenScroll = func(counter int, x int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 315)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 315)
 		fmt.Printf("r: %v\n", r)
 		if r < 50 {
 			scripts.ScrollDown(port, c, x)
@@ -68,7 +74,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	var checkAndClickScreenScroll = func(counter int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 283, 332)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 332)
 		if r < 50 {
 			scripts.FastClick(port, c)
 		}
@@ -95,6 +101,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 		var smallScreenshots []image.Image
 
 		img := captureScreenShot()
+		// saveScreenShotFull()
 		screenshots = append(screenshots, img)
 		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
 		fmt.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
@@ -122,13 +129,30 @@ var Run = func(port *serial.Port, c *config.Config) {
 			finalImage, _ := imageInternal.CombineImages(screenshots, smallScreenshots)
 			combinedImg := imageInternal.CropOpacityPixel(finalImage)
 
+			// --- Новая логика кадрирования для комбинированного изображения ---
+			bounds := combinedImg.Bounds()
+			cropRect := image.Rect(40, 22, bounds.Dx()-17, bounds.Dy())
+			croppedCombinedImg := combinedImg.(interface {
+				SubImage(r image.Rectangle) image.Image
+			}).SubImage(cropRect)
+			// --- Конец логики кадрирования ---
+
 			fileCount, _ := countFilesInDir("./imgs")
 			fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
-			err = imageInternal.SaveCombinedImage(combinedImg, fileName)
+			err = imageInternal.SaveCombinedImage(croppedCombinedImg, fileName)
 			if err != nil {
 				return false
 			}
+
 			scripts.ScrollUp(port, c, counter+5)
+
+			result, err := ocr.RunOCR(fileName)
+			if err != nil {
+				fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
+			} else {
+				fmt.Println(result)
+			}
+
 			return true
 		}
 		return false
@@ -153,59 +177,59 @@ var Run = func(port *serial.Port, c *config.Config) {
 			}
 		}
 
-		// clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
+		// clickItem(config.Coordinates{X: marginX + c.Click.Item1.X, Y: marginY + c.Click.Item1.Y})
 	}
 
-	//берем в фокус и делаем скрин
+	// берем в фокус и делаем скрин
+	scripts.ClickCoordinates(port, c, c.Click.Item1)
+	img = saveScreenShot()
+	clickEveryItemAnsScreenShot(img)
+
+	// // берем в фокус
 	// scripts.ClickCoordinates(port, c, c.Click.Item1)
-	// img = saveScreenShot()
+
+	// cycles := 0
+	// for cycles < 1 {
+	// 	img := captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
+
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+	// img = captureScreenShot()
 	// clickEveryItemAnsScreenShot(img)
 
-	// берем в фокус
-	scripts.ClickCoordinates(port, c, c.Click.Item1)
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-	cycles := 0
-	for cycles < 1 {
-		img := captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// img = captureScreenShot()
+	// SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+	// maxSixButtonClicks := 0
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// for SixButtonPx > 30 && maxSixButtonClicks < 50 {
+	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+	// 	img = captureScreenShot()
+	// 	clickEveryItemAnsScreenShot(img)
+	// 	img = captureScreenShot()
+	// 	SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+	// 	maxSixButtonClicks += 1
+	// }
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-		img = captureScreenShot()
-		clickEveryItemAnsScreenShot(img)
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+	// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
 
-		img = captureScreenShot()
-		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-		maxSixButtonClicks := 0
-
-		for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-			img = captureScreenShot()
-			clickEveryItemAnsScreenShot(img)
-			img = captureScreenShot()
-			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-			maxSixButtonClicks += 1
-		}
-
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
-
-		cycles += 1
-	}
+	// 	cycles += 1
+	// }
 
 }

@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
+	"os/exec"
 
 	"github.com/nfnt/resize"
 )
@@ -149,6 +150,10 @@ var SaveCombinedImage = func(image image.Image, filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to save image: %v", err)
 	}
+
+	// TODO: Добавить прямую интеграцию OCR здесь
+	// Вместо вызова exec.Command
+
 	return nil
 }
 
@@ -326,4 +331,16 @@ func FindItemPositionsByTextColor(img image.Image, targetX int) []image.Point {
 	centers = append(centers, image.Point{X: targetX, Y: lastCenterY})
 
 	return centers
+}
+
+func OCR(imagePath string) error {
+	// Запускаем OCR для извлечения текста
+	cmd := exec.Command("go", "run", "./cmd/ocr_runner/main.go", imagePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ошибка при выполнении OCR: %v, вывод: %s", err, string(output))
+	}
+
+	fmt.Printf("OCR результат для %s:\n%s\n", imagePath, string(output))
+	return nil
 }

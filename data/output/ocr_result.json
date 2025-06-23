@@ -1,0 +1,26 @@
+{
+    "image_file": "./imgs/screenshot10.png",
+    "processing": {
+        "enlargement": "4x",
+        "grayscale": true,
+        "denoising": "median_blur_3x3",
+        "contrast_enhancement": "1.2x + 10",
+        "binarization": "OTSU",
+        "ocr_engine": "Tesseract 5.5.0",
+        "ocr_languages": "rus+eng",
+        "ocr_mode": "--psm 6"
+    },
+    "text_recognition": {
+        "success": true,
+        "raw_text": "+6 Dwarven Chain Gloves\nPrice: 800 000, owner: AviKsik\n",
+        "structured_data": [
+    {
+        "title": "+6 dwarven chain gloves",
+        "price": "800000",
+        "package": false,
+        "owner": "aviksik"
+    }
+],
+        "confidence": "unknown"
+    }
+}
