@@ -94,7 +94,8 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return len(files), nil
 	}
 
-	var captureScreenShotsWithScroll = func() bool {
+	// Функция для выполнения полного цикла скриншотов и OCR
+	var performScreenshotAndOCR = func(buttonPressed bool) error {
 		counter := 0
 		maxCounter := 20
 		scrollRPx := 26
@@ -104,8 +105,8 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		var smallScreenshots []image.Image
 
 		img := captureScreenShot()
-		// saveScreenShotFull()
 		screenshots = append(screenshots, img)
+
 		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
 		fmt.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
 
@@ -132,49 +133,112 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 			finalImage, _ := imageInternal.CombineImages(screenshots, smallScreenshots)
 			combinedImg := imageInternal.CropOpacityPixel(finalImage)
 
-			// --- Новая логика кадрирования для комбинированного изображения ---
+			// Кадрирование комбинированного изображения
 			bounds := combinedImg.Bounds()
-			cropRect := image.Rect(40, 22, bounds.Dx()-17, bounds.Dy())
+			topCrop := 22 // По умолчанию обрезаем 22 пикселя сверху
+			if buttonPressed {
+				topCrop = 45 // Если кнопка была нажата, обрезаем 45 пикселей сверху
+			}
+			cropRect := image.Rect(40, topCrop, bounds.Dx()-17, bounds.Dy())
 			croppedCombinedImg := combinedImg.(interface {
 				SubImage(r image.Rectangle) image.Image
 			}).SubImage(cropRect)
-			// --- Конец логики кадрирования ---
 
 			fileCount, _ := countFilesInDir("./imgs")
 			fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
-			err = imageInternal.SaveCombinedImage(croppedCombinedImg, fileName)
+			err := imageInternal.SaveCombinedImage(croppedCombinedImg, fileName)
 			if err != nil {
-				return false
+				return err
 			}
 
 			scripts.ScrollUp(port, c, counter+5)
 
 			result, err := ocr.RunOCR(fileName)
-
 			if err != nil {
 				fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
-			} else {
-				fmt.Println(result)
-
-				// Парсим результат OCR
-				debugInfo, jsonData, rawText := ocr.ParseOCRResult(result)
-
-				// Конвертируем изображение в байты
-				imageBytes, err := imageToBytes(croppedCombinedImg)
-				if err != nil {
-					log.Printf("Ошибка конвертации изображения: %v", err)
-				} else {
-					// Сохраняем результат в базу данных
-					_, err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, rawText, imageBytes, c)
-					if err != nil {
-						log.Printf("Ошибка сохранения в БД: %v", err)
-					}
-				}
+				return err
 			}
 
-			return true
+			fmt.Println(result)
+
+			// Парсим результат OCR
+			debugInfo, jsonData, rawText := ocr.ParseOCRResult(result)
+
+			// Конвертируем изображение в байты
+			imageBytes, err := imageToBytes(croppedCombinedImg)
+			if err != nil {
+				log.Printf("Ошибка конвертации изображения: %v", err)
+				return err
+			}
+
+			// Сохраняем результат в базу данных
+			_, err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, rawText, imageBytes, c)
+			if err != nil {
+				log.Printf("Ошибка сохранения в БД: %v", err)
+				return err
+			}
+
+			return nil
 		}
-		return false
+		return fmt.Errorf("scrollRPx не превышает 26")
+	}
+
+	// Функция для проверки и клика по кнопке
+	var checkAndClickButton = func(buttonX, buttonY int, buttonName string) bool {
+		img := captureScreenShot()
+		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, buttonY)
+		fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
+		return buttonRPx > 26
+	}
+
+	var captureScreenShotsWithScroll = func() bool {
+		// Выполняем основной цикл скриншотов и OCR (без нажатия кнопок)
+		if checkAndClickButton(c.Click.Button2.X, c.Click.Button2.Y, "listButton2") {
+			err := performScreenshotAndOCR(true)
+			if err != nil {
+				return false
+			}
+		} else {
+			err := performScreenshotAndOCR(false)
+			if err != nil {
+				return false
+			}
+		}
+
+		// Проверяем и кликаем по кнопке 2
+		if checkAndClickButton(c.Click.Button2.X, c.Click.Button2.Y, "listButton2") {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+
+			// Повторяем цикл для кнопки 2 (с нажатием кнопки)
+			err = performScreenshotAndOCR(true)
+			if err != nil {
+				return false
+			}
+		}
+
+		// Проверяем и кликаем по кнопке 3
+		if checkAndClickButton(c.Click.Button3.X, c.Click.Button3.Y, "listButton3") {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+
+			// Повторяем цикл для кнопки 3 (с нажатием кнопки)
+			err = performScreenshotAndOCR(true)
+			if err != nil {
+				return false
+			}
+		}
+
+		// Проверяем и кликаем по кнопке 4
+		if checkAndClickButton(c.Click.Button4.X, c.Click.Button4.Y, "listButton4") {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+
+			// Повторяем цикл для кнопки 4 (с нажатием кнопки)
+			err = performScreenshotAndOCR(true)
+			if err != nil {
+				return false
+			}
+		}
+
+		return true
 	}
 
 	var clickItem = func(item config.Coordinates) {
@@ -189,14 +253,14 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		points := imageInternal.FindItemPositionsByTextColor(img, 80)
-		if len(points) > 2 {
-			for _, point := range points {
-				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
-			}
-		}
+		// points := imageInternal.FindItemPositionsByTextColor(img, 80)
+		// if len(points) > 2 {
+		// 	for _, point := range points {
+		// 		clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
+		// 	}
+		// }
 
-		// clickItem(config.Coordinates{X: marginX + c.Click.Item1.X, Y: marginY + c.Click.Item1.Y})
+		clickItem(config.Coordinates{X: marginX + c.Click.Item3.X, Y: marginY + c.Click.Item3.Y})
 	}
 
 	// берем в фокус и делаем скрин
