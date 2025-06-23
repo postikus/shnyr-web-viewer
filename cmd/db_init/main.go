@@ -74,5 +74,22 @@ func main() {
 	}
 	fmt.Println("Таблица structured_items создана")
 
+	// Создаем таблицу для исправлений данных
+	_, err = db2.Exec(`
+		CREATE TABLE IF NOT EXISTS item_corrections (
+			id INTEGER PRIMARY KEY AUTO_INCREMENT,
+			item_id INTEGER NOT NULL,
+			field_name VARCHAR(50) NOT NULL,
+			current_value TEXT,
+			corrected_value TEXT NOT NULL,
+			comment TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (item_id) REFERENCES structured_items(id) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		log.Fatal("Ошибка создания таблицы item_corrections:", err)
+	}
+
 	fmt.Println("Инициализация базы завершена!")
 }

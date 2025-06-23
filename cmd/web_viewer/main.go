@@ -160,7 +160,6 @@ func main() {
 				args = append(args, priceArgs...)
 			}
 
-			countQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
 			dataQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
 		} else {
 			// Без поиска
@@ -251,476 +250,249 @@ func main() {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<style>
 				* { box-sizing: border-box; }
-				
-				body { 
-					font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-					margin: 0; 
-					padding: 0; 
-					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				body {
+					font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+					margin: 0;
+					padding: 0;
+					background: #fff;
 					min-height: 100vh;
-					color: #333;
+					color: #111;
 				}
-				
 				.container {
 					width: 100%;
 					margin: 0;
-					background: white;
+					background: #fff;
 					border-radius: 0;
 					box-shadow: none;
 					overflow: hidden;
 				}
-				
 				.header {
-					background: linear-gradient(135deg, #4CAF50, #45a049);
-					color: white;
-					padding: 15px;
-					text-align: left;
-					margin: 0;
 					position: fixed;
 					top: 0;
 					left: 0;
 					right: 0;
+					background: #fff;
+					color: #111;
+					padding: 20px 0;
 					z-index: 1000;
-					box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+					border-bottom: 2px solid #eee;
+				}
+				.header-content {
 					display: flex;
-					align-items: center;
 					justify-content: space-between;
+					align-items: center;
+					padding: 0 30px;
+					flex-wrap: wrap;
+					gap: 20px;
 				}
-				
-				.header-title {
-					font-size: 1.5em;
-					font-weight: 300;
-					text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+				.title-section h1 {
 					margin: 0;
-					flex-shrink: 0;
+					font-size: 2.5em;
+					font-weight: 700;
+					color: #111;
+					text-shadow: none;
 				}
-				
-				.header-controls {
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-					max-width: 100%;
-					margin: 0 auto;
-					flex: 1;
-					max-width: 600px;
-				}
-				
 				.search-container {
 					display: flex;
-					flex-direction: column;
-					gap: 8px;
-					max-width: 100%;
-					margin: 0 auto;
-				}
-				
-				.filter-row {
-					display: flex;
-					gap: 8px;
 					align-items: center;
+					gap: 15px;
+					flex-wrap: wrap;
 				}
-				
-				.price-input {
-					flex: 1;
-					padding: 10px 12px;
-					border: none;
-					border-radius: 20px;
-					font-size: 14px;
-					outline: none;
-					box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-					transition: box-shadow 0.3s ease;
-					background: rgba(255,255,255,0.9);
-					color: #333;
-				}
-				
-				.price-input:focus {
-					box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-					background: white;
-				}
-				
-				.price-input::placeholder {
-					color: #999;
-				}
-				
 				.search-input {
-					width: 100%;
-					padding: 12px 16px;
-					border: none;
+					padding: 12px 20px;
+					border: 1px solid #bbb;
 					border-radius: 25px;
 					font-size: 16px;
-					outline: none;
-					box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-					transition: box-shadow 0.3s ease;
+					width: 300px;
+					background: #fff;
+					color: #111;
+					box-shadow: none;
+					transition: border-color 0.3s ease;
 				}
-				
 				.search-input:focus {
-					box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+					outline: none;
+					border-color: #111;
 				}
-				
+				.price-filter {
+					display: flex;
+					align-items: center;
+					gap: 10px;
+					background: #f5f5f5;
+					padding: 8px 15px;
+					border-radius: 20px;
+				}
+				.price-input {
+					padding: 8px 12px;
+					border: 1px solid #bbb;
+					border-radius: 15px;
+					width: 100px;
+					font-size: 14px;
+					background: #fff;
+					color: #111;
+				}
 				.search-button {
 					padding: 12px 20px;
-					background: rgba(255,255,255,0.2);
-					border: 2px solid rgba(255,255,255,0.3);
-					color: white;
+					background: #111;
+					color: #fff;
+					border: none;
 					border-radius: 25px;
-					cursor: pointer;
 					font-size: 16px;
-					transition: all 0.3s ease;
-					backdrop-filter: blur(10px);
-					width: 100%;
-				}
-				
-				.search-button:hover {
-					background: rgba(255,255,255,0.3);
-					border-color: rgba(255,255,255,0.5);
-					transform: translateY(-2px);
-				}
-				
-				.clear-button {
-					padding: 10px 16px;
-					background: rgba(255,255,255,0.1);
-					border: 2px solid rgba(255,255,255,0.2);
-					color: white;
-					border-radius: 25px;
 					cursor: pointer;
-					font-size: 14px;
-					transition: all 0.3s ease;
+					transition: background 0.3s ease;
+				}
+				.search-button:hover {
+					background: #444;
+				}
+				.clear-button {
+					padding: 8px 16px;
+					background: #fff;
+					color: #111;
+					border: 1px solid #bbb;
 					text-decoration: none;
-					text-align: center;
-					width: 100%;
+					border-radius: 20px;
+					font-size: 14px;
+					transition: background 0.3s ease, color 0.3s ease;
 				}
-				
 				.clear-button:hover {
-					background: rgba(255,255,255,0.2);
-					border-color: rgba(255,255,255,0.4);
+					background: #eee;
+					color: #000;
 				}
-				
-				.content {
-					padding: 15px;
-					margin-top: 140px;
-				}
-				
-				.stats { 
-					text-align: center; 
-					margin: 15px 0; 
-					padding: 12px;
-					background: #f8f9fa;
-					border-radius: 8px;
-					border-left: 4px solid #4CAF50;
-					font-size: 0.9em;
-					color: #555;
-				}
-				
-				.search-info {
-					text-align: center;
-					margin: 10px 0;
-					padding: 10px;
-					background: #e8f5e8;
-					border-radius: 8px;
-					color: #2e7d32;
-					font-weight: 500;
-					font-size: 0.9em;
-				}
-				
-				/* Мобильная таблица */
-				.mobile-table {
-					display: block;
-					width: 100%;
-					overflow-x: auto;
-					-webkit-overflow-scrolling: touch;
-				}
-				
-				table { 
-					border-collapse: collapse; 
-					width: 100%; 
-					margin-bottom: 20px;
-					background: white;
-					border-radius: 8px;
-					overflow: hidden;
-					box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-					min-width: 800px; /* Минимальная ширина для горизонтального скролла */
-				}
-				
-				th, td { 
-					border: 1px solid #e0e0e0; 
-					padding: 8px; 
-					text-align: left; 
-					vertical-align: top;
-					font-size: 0.8em;
-				}
-				
-				th { 
-					background: linear-gradient(135deg, #4CAF50, #45a049);
-					color: white;
-					font-weight: 600;
-					text-transform: uppercase;
-					font-size: 0.75em;
-					letter-spacing: 0.3px;
-					white-space: nowrap;
-				}
-				
-				tr:nth-child(even) {
-					background-color: #f9f9f9;
-				}
-				
-				tr:hover {
-					background-color: #f0f8ff;
-					transition: background-color 0.3s ease;
-				}
-				
-				.image-cell img {
-					max-width: 150px;
-					max-height: 100px;
-					border-radius: 6px;
-					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-					border: 1px solid #e0e0e0;
-				}
-				
-				.text-cell pre {
-					max-width: 200px;
-					max-height: 150px;
-					overflow: auto;
-					background: #f8f9fa;
-					padding: 8px;
-					border-radius: 4px;
-					border: 1px solid #e0e0e0;
-					font-size: 0.7em;
-					line-height: 1.3;
-					margin: 0;
-				}
-				
-				.structured-table {
-					border: 1px solid #ddd;
-					font-size: 9px;
-					border-radius: 4px;
-					overflow: visible;
-					box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-					max-width: 360px; /* Увеличено на 20% с 300px */
-				}
-				
-				.structured-table table {
-					width: 100%;
-					margin: 0;
-					box-shadow: none;
-					min-width: auto;
-				}
-				
-				.structured-table th {
-					background: #6c757d;
-					color: white;
-					padding: 4px 6px;
-					font-size: 8px;
-				}
-				
-				.structured-table td {
-					padding: 3px 4px;
-					border: 1px solid #e0e0e0;
-					font-size: 8px;
-					white-space: normal;
-					word-wrap: break-word;
-				}
-				
-				.structured-table tr:nth-child(even) {
-					background-color: #f8f9fa;
-				}
-				
-				.pagination { 
-					text-align: center; 
-					margin: 20px 0; 
-					padding: 15px;
-					background: #f8f9fa;
-					border-radius: 8px;
-				}
-				
-				.pagination a, .pagination span { 
-					display: inline-block; 
-					padding: 8px 12px; 
-					text-decoration: none; 
-					border: 2px solid #4CAF50; 
-					margin: 2px; 
-					border-radius: 6px;
-					font-weight: 500;
-					transition: all 0.3s ease;
-					min-width: 35px;
-					font-size: 0.9em;
-				}
-				
-				.pagination a { 
-					background: white;
-					color: #4CAF50;
-				}
-				
-				.pagination a:hover { 
-					background: #4CAF50; 
-					color: white;
-					transform: translateY(-1px);
-					box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
-				}
-				
-				.pagination .current { 
-					background: #4CAF50; 
-					color: white;
-					font-weight: bold;
-				}
-				
-				.pagination .disabled { 
-					color: #ccc; 
-					border-color: #ccc;
-					pointer-events: none;
+				.tabs {
+					display: flex;
 					background: #f5f5f5;
+					border-bottom: 2px solid #eee;
 				}
-				
-				.no-data {
-					text-align: center;
+				.tab {
+					padding: 15px 30px;
+					text-decoration: none;
+					color: #444;
+					font-weight: 600;
+					transition: background 0.3s ease, color 0.3s ease;
+					border-bottom: 3px solid transparent;
+				}
+				.tab:hover {
+					background: #eee;
+					color: #000;
+				}
+				.tab.active {
+					color: #111;
+					border-bottom-color: #111;
+					background: #fff;
+				}
+				.content {
+					padding: 30px;
+					margin-top: 120px; /* Отступ для фиксированной шапки */
+				}
+				table {
+					width: 100%;
+					border-collapse: collapse;
+					background: #fff;
+					border-radius: 10px;
+					overflow: hidden;
+					box-shadow: none;
+				}
+				th, td {
 					padding: 15px;
-					color: #666;
-					font-style: italic;
-					background: #f8f9fa;
-					border-radius: 4px;
-					border: 1px dashed #ccc;
-					font-size: 0.8em;
+					text-align: left;
+					border-bottom: 1px solid #eee;
 				}
-				
-				.id-cell {
+				th {
+					background: #f5f5f5;
+					color: #111;
+					font-weight: 600;
+					font-size: 14px;
+				}
+				tr:hover {
+					background: #f0f0f0;
+				}
+				.screenshot-cell {
+					width: 120px;
+				}
+				.screenshot-thumb {
+					width: 100px;
+					height: 60px;
+					object-fit: cover;
+					border-radius: 8px;
+					cursor: pointer;
+					transition: transform 0.3s ease;
+					filter: grayscale(1);
+				}
+				.screenshot-thumb:hover {
+					transform: scale(1.1);
+				}
+				.structured-data {
+					max-width: 400px;
+				}
+				.structured-table {
+					width: 100%;
+					font-size: 12px;
+					border-collapse: collapse;
+				}
+				.structured-table th,
+				.structured-table td {
+					padding: 4px 8px;
+					border: 1px solid #ddd;
+					font-size: 11px;
+					background: #fff;
+					color: #111;
+				}
+				.structured-table th {
+					background: #f5f5f5;
+					font-weight: 600;
+				}
+				.cheapest {
+					background: #eaeaea !important;
+					color: #111 !important;
+					font-weight: bold !important;
+				}
+				.cheapest-package {
+					background: #d4edda !important;
+					color: #111 !important;
+					font-weight: bold !important;
+				}
+				.structured-table tr.cheapest {
+					background: #eaeaea !important;
+					color: #111 !important;
+					font-weight: bold !important;
+				}
+				.structured-table tr.cheapest-package {
+					background: #d4edda !important;
+					color: #111 !important;
+					font-weight: bold !important;
+				}
+				.pagination {
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					margin-top: 30px;
+					gap: 10px;
+				}
+				.pagination a {
+					padding: 10px 15px;
+					background: #fff;
+					color: #111;
+					text-decoration: none;
+					border-radius: 8px;
+					border: 1px solid #bbb;
+					transition: background 0.3s ease, color 0.3s ease;
+				}
+				.pagination a:hover {
+					background: #eee;
+					color: #000;
+				}
+				.pagination .current {
+					background: #111;
+					color: #fff;
 					font-weight: bold;
-					color: #4CAF50;
-					text-align: center;
-					font-size: 0.8em;
 				}
-				
-				.date-cell {
-					font-size: 0.75em;
-					color: #666;
-					white-space: nowrap;
+				.pagination .disabled {
+					background: #eee;
+					color: #bbb;
+					cursor: not-allowed;
 				}
-				
-				/* Планшеты */
-				@media (min-width: 768px) {
-					.header {
-						padding: 20px;
-					}
-					
-					.header h2 {
-						font-size: 2em;
-						margin-bottom: 15px;
-					}
-					
-					.search-container {
-						flex-direction: row;
-						gap: 10px;
-						max-width: 500px;
-					}
-					
-					.search-input {
-						flex: 1;
-					}
-					
-					.search-button, .clear-button {
-						width: auto;
-					}
-					
-					.content {
-						padding: 20px;
-						margin-top: 120px;
-					}
-					
-					.stats {
-						font-size: 1.1em;
-						padding: 15px;
-					}
-					
-					th, td {
-						padding: 12px;
-						font-size: 0.9em;
-					}
-					
-					.image-cell img {
-						max-width: 200px;
-						max-height: 150px;
-					}
-					
-					.text-cell pre {
-						max-width: 250px;
-						font-size: 0.8em;
-					}
-					
-					.structured-table {
-						max-width: 400px;
-						font-size: 10px;
-					}
-					
-					.structured-table th {
-						font-size: 9px;
-						padding: 6px 8px;
-					}
-					
-					.structured-table td {
-						font-size: 9px;
-						padding: 4px 6px;
-					}
+				.pagination .disabled:hover {
+					transform: none;
 				}
-				
-				/* Десктопы */
-				@media (min-width: 1024px) {
-					.header h2 {
-						font-size: 2.5em;
-					}
-					
-					.content {
-						padding: 30px;
-					}
-					
-					th, td {
-						padding: 15px;
-						font-size: 1em;
-					}
-					
-					.image-cell img {
-						max-width: 300px;
-						max-height: 200px;
-					}
-					
-					.text-cell pre {
-						max-width: 300px;
-						font-size: 0.85em;
-					}
-					
-					.structured-table {
-						max-width: 500px;
-						font-size: 11px;
-					}
-					
-					.structured-table th {
-						font-size: 10px;
-						padding: 8px;
-					}
-					
-					.structured-table td {
-						font-size: 10px;
-						padding: 6px 8px;
-					}
-					
-					table {
-						min-width: auto;
-					}
-				}
-				
-				/* Большие экраны */
-				@media (min-width: 1200px) {
-					.container {
-						width: 100%;
-						margin: 0;
-					}
-					
-					.text-cell pre {
-						max-width: 350px;
-					}
-					
-					.image-cell img {
-						max-width: 350px;
-					}
-				}
-				
-				/* Модальное окно для изображений */
 				.modal {
 					display: none;
 					position: fixed;
@@ -729,311 +501,211 @@ func main() {
 					top: 0;
 					width: 100%;
 					height: 100%;
-					background-color: rgba(0,0,0,0.9);
+					background-color: rgba(0,0,0,0.8);
 					backdrop-filter: blur(5px);
 				}
-				
 				.modal-content {
 					position: relative;
+					background-color: #fff;
 					margin: 2% auto;
 					padding: 20px;
+					border-radius: 15px;
 					width: 90%;
-					height: 90%;
-					background: white;
-					border-radius: 12px;
-					box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-					overflow: auto;
-					animation: modalFadeIn 0.3s ease-out;
+					max-width: 1200px;
+					max-height: 90vh;
+					overflow-y: auto;
+					animation: modalSlideIn 0.3s ease;
+					color: #111;
 				}
-				
-				@keyframes modalFadeIn {
-					from {
-						opacity: 0;
-						transform: scale(0.9) translateY(-20px);
-					}
-					to {
-						opacity: 1;
-						transform: scale(1) translateY(0);
-					}
+				@keyframes modalSlideIn {
+					from { opacity: 0; transform: translateY(-50px); }
+					to { opacity: 1; transform: translateY(0); }
 				}
-				
-				.modal-image {
-					width: 100%;
-					height: auto;
-					max-width: none;
-					border-radius: 8px;
-					box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-					cursor: zoom-out;
-					transition: transform 0.2s ease;
-				}
-				
-				.modal-image:hover {
-					transform: scale(1.02);
-				}
-				
-				.close-modal {
+				.close {
 					position: absolute;
-					top: 15px;
 					right: 20px;
-					color: #aaa;
+					top: 20px;
 					font-size: 28px;
 					font-weight: bold;
 					cursor: pointer;
-					background: rgba(255,255,255,0.9);
-					border-radius: 50%;
-					width: 40px;
-					height: 40px;
+					color: #888;
+					transition: color 0.3s ease;
+				}
+				.close:hover {
+					color: #111;
+				}
+				.modal-image {
+					max-width: 100%;
+					height: auto;
+					border-radius: 10px;
+					box-shadow: none;
+				}
+				.modal-title {
+					font-size: 24px;
+					font-weight: bold;
+					margin-bottom: 20px;
+					color: #111;
+				}
+				.modal-section {
+					margin: 20px 0;
+					padding: 20px;
+					background: #f5f5f5;
+					border-radius: 10px;
+				}
+				.modal-section h3 {
+					margin-top: 0;
+					color: #111;
+				}
+				.detail-row {
 					display: flex;
 					align-items: center;
-					justify-content: center;
-					transition: all 0.3s ease;
-					z-index: 2001;
+					gap: 10px;
+					margin: 5px 0;
 				}
-				
-				.close-modal:hover,
-				.close-modal:focus {
+				.detail-label {
+					font-weight: 600;
+					min-width: 120px;
+				}
+				.detail-value {
+					flex: 1;
+				}
+				.correction-button {
+					padding: 4px 8px;
+					background: #fff;
+					color: #111;
+					border: 1px solid #bbb;
+					border-radius: 4px;
+					font-size: 10px;
+					cursor: pointer;
+					margin-left: 10px;
+					transition: background 0.3s ease, color 0.3s ease;
+				}
+				.correction-button:hover {
+					background: #eee;
 					color: #000;
-					background: white;
-					transform: scale(1.1);
 				}
-				
-				.modal-header {
-					text-align: center;
-					margin-bottom: 20px;
-					padding-bottom: 15px;
-					border-bottom: 2px solid #f0f0f0;
-				}
-				
-				.modal-title {
-					font-size: 1.5em;
-					color: #333;
-					margin: 0;
-					font-weight: 600;
-				}
-				
-				.modal-info {
-					font-size: 0.9em;
-					color: #666;
-					margin-top: 5px;
-				}
-				
-				.modal-structured-data {
-					margin-top: 20px;
-					padding: 15px;
-					background: #f8f9fa;
-					border-radius: 8px;
-					border: 1px solid #e0e0e0;
-				}
-				
-				.modal-structured-table {
-					width: 100%;
-					border-collapse: collapse;
-					margin-top: 10px;
-					background: white;
-					border-radius: 6px;
-					overflow: hidden;
-					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-				}
-				
-				.modal-structured-table th {
-					background: #4CAF50;
-					color: white;
-					padding: 8px 6px;
-					font-size: 0.8em;
-					font-weight: 600;
-					text-align: left;
-				}
-				
-				.modal-structured-table td {
-					padding: 6px 4px;
-					border: 1px solid #e0e0e0;
-					font-size: 0.75em;
-					white-space: normal;
-					word-wrap: break-word;
-				}
-				
-				.modal-structured-table tr:nth-child(even) {
-					background-color: #f8f9fa;
-				}
-				
-				.modal-structured-table tr:hover {
-					background-color: #f0f8ff;
-				}
-				
-				/* Модальное окно для подробной информации */
-				.detail-modal {
+				.correction-modal {
 					display: none;
 					position: fixed;
-					z-index: 2000;
+					z-index: 3000;
 					left: 0;
 					top: 0;
 					width: 100%;
 					height: 100%;
 					background-color: rgba(0,0,0,0.9);
-					backdrop-filter: blur(5px);
 				}
-				
-				.detail-modal-content {
-					position: relative;
-					margin: 2% auto;
-					padding: 25px;
-					width: 95%;
-					height: 95%;
-					background: white;
-					border-radius: 12px;
-					box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-					overflow: auto;
-					animation: modalFadeIn 0.3s ease-out;
+				.correction-content {
+					background-color: #fff;
+					margin: 5% auto;
+					padding: 30px;
+					border-radius: 15px;
+					width: 90%;
+					max-width: 600px;
+					animation: modalSlideIn 0.3s ease;
+					color: #111;
 				}
-				
-				.detail-section {
-					margin-bottom: 25px;
-					padding: 20px;
-					background: #f8f9fa;
+				.form-group {
+					margin-bottom: 20px;
+				}
+				.form-group label {
+					font-weight: 600;
+					color: #111;
+					font-size: 0.95em;
+				}
+				.correction-select,
+				.correction-input,
+				.correction-textarea {
+					padding: 12px 16px;
+					border: 1px solid #bbb;
 					border-radius: 8px;
-					border-left: 4px solid #4CAF50;
+					font-size: 14px;
+					background: #fff;
+					color: #111;
+					transition: border-color 0.3s ease;
 				}
-				
-				.detail-section h3 {
-					margin: 0 0 15px 0;
-					color: #333;
-					font-size: 1.3em;
-					font-weight: 600;
+				.correction-select:focus,
+				.correction-input:focus,
+				.correction-textarea:focus {
+					border-color: #111;
+					outline: none;
 				}
-				
-				.detail-section h4 {
-					margin: 15px 0 10px 0;
-					color: #555;
-					font-size: 1.1em;
-					font-weight: 500;
+				.correction-input[readonly] {
+					background-color: #f5f5f5;
+					color: #888;
 				}
-				
-				.detail-text {
-					background: white;
-					padding: 15px;
-					border-radius: 6px;
-					border: 1px solid #e0e0e0;
-					font-family: 'Courier New', monospace;
-					font-size: 0.9em;
-					line-height: 1.4;
-					max-height: 300px;
-					overflow: auto;
-					white-space: pre-wrap;
-					word-wrap: break-word;
+				.correction-textarea {
+					resize: vertical;
+					min-height: 80px;
+					font-family: inherit;
 				}
-				
-				.detail-image {
-					max-width: 100%;
-					height: auto;
-					border-radius: 8px;
-					box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-					cursor: pointer;
-					transition: transform 0.2s ease;
-				}
-				
-				.detail-image:hover {
-					transform: scale(1.02);
-				}
-				
-				.detail-table {
-					width: 100%;
-					border-collapse: collapse;
-					margin-top: 10px;
-					background: white;
-					border-radius: 6px;
-					overflow: hidden;
-					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-				}
-				
-				.detail-table th {
-					background: #4CAF50;
-					color: white;
-					padding: 12px 8px;
-					font-size: 0.9em;
-					font-weight: 600;
-					text-align: left;
-				}
-				
-				.detail-table td {
-					padding: 10px 8px;
-					border: 1px solid #e0e0e0;
-					font-size: 0.85em;
-					white-space: normal;
-					word-wrap: break-word;
-				}
-				
-				.detail-table tr:nth-child(even) {
-					background-color: #f8f9fa;
-				}
-				
-				.detail-table tr:hover {
-					background-color: #f0f8ff;
-				}
-				
-				/* Выделение самого дешевого предмета */
-				.cheapest-item {
-					background-color: #e8f5e8 !important;
-					border-left: 4px solid #4CAF50 !important;
-					font-weight: 600;
-				}
-				
-				.cheapest-item td {
-					background-color: #e8f5e8 !important;
-				}
-				
-				.cheapest-item:hover {
-					background-color: #d4edda !important;
-				}
-				
-				.cheapest-item:hover td {
-					background-color: #d4edda !important;
-				}
-				
-				.detail-info-grid {
-					display: grid;
-					grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+				.correction-buttons {
+					display: flex;
 					gap: 15px;
-					margin-top: 15px;
+					justify-content: center;
+					margin-top: 20px;
 				}
-				
-				.detail-info-item {
-					background: white;
-					padding: 12px;
-					border-radius: 6px;
-					border: 1px solid #e0e0e0;
-				}
-				
-				.detail-info-label {
+				.save-button,
+				.cancel-button {
+					padding: 12px 24px;
+					border: none;
+					border-radius: 8px;
+					font-size: 14px;
 					font-weight: 600;
-					color: #555;
-					font-size: 0.85em;
-					margin-bottom: 5px;
+					cursor: pointer;
+					transition: background 0.3s ease, color 0.3s ease;
+					min-width: 140px;
 				}
-				
-				.detail-info-value {
-					color: #333;
-					font-size: 0.9em;
+				.save-button {
+					background: #111;
+					color: #fff;
 				}
-				
-				/* Адаптивность модального окна */
+				.save-button:hover {
+					background: #444;
+				}
+				.cancel-button {
+					background: #fff;
+					color: #111;
+					border: 1px solid #bbb;
+				}
+				.cancel-button:hover {
+					background: #eee;
+					color: #000;
+				}
 				@media (max-width: 768px) {
+					.header-content {
+						flex-direction: column;
+						text-align: center;
+					}
+					.title-section h1 {
+						font-size: 2em;
+					}
+					.search-input {
+						width: 100%;
+						max-width: 300px;
+					}
+					.price-filter {
+						flex-direction: column;
+						gap: 5px;
+					}
+					.price-input {
+						width: 120px;
+					}
+					table {
+						font-size: 12px;
+					}
+					th, td {
+						padding: 8px;
+					}
+					.structured-table {
+						font-size: 10px;
+					}
+					.structured-table th,
+					.structured-table td {
+						padding: 2px 4px;
+					}
 					.modal-content {
 						width: 95%;
-						height: 95%;
-						margin: 2.5% auto;
-						padding: 15px;
-					}
-					
-					.close-modal {
-						top: 10px;
-						right: 15px;
-						width: 35px;
-						height: 35px;
-						font-size: 24px;
-					}
-					
-					.modal-title {
-						font-size: 1.2em;
+						margin: 5% auto;
 					}
 				}
 			</style>
@@ -1078,7 +750,7 @@ func main() {
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr onclick="openDetailModal('{{.RawText}}', '{{.CreatedAt}}', '{{base64encode .ImageData}}', '{{.DebugInfo}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;">
+				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
@@ -1097,7 +769,7 @@ func main() {
 					<td>{{.Title}}</td>
 					<td>{{.TitleShort}}</td>
 					<td>{{.Enhancement}}</td>
-					<td>{{.Price}}</td>
+					<td>{{formatPrice .Price}}</td>
 					<td>{{if .Package}}✔️{{end}}</td>
 					<td>{{.Owner}}</td>
 					</tr>
@@ -1155,25 +827,30 @@ func main() {
 			</div>
 		</div>
 		
-		<!-- Модальное окно для подробной информации -->
-		<div id="detailModal" class="detail-modal">
-			<div class="detail-modal-content">
-				<span class="close-modal" onclick="closeDetailModal()">&times;</span>
-				<div class="detail-section">
-					<h3>📋 Структурированные данные:</h3>
-					<div class="detail-text" id="detailText"></div>
+		<!-- Модальное окно для детального просмотра -->
+		<div id="detailModal" class="modal">
+			<div class="modal-content">
+				<span class="close" onclick="closeDetailModal()">&times;</span>
+				<div class="modal-title" id="detailModalTitle"></div>
+				
+				<div class="modal-section">
+					<h3>📸 Скриншот</h3>
+					<img id="detailModalImage" class="modal-image" alt="Screenshot">
 				</div>
-				<div class="detail-section">
-					<h3>🐛 Debug Info:</h3>
-					<div class="detail-text" id="detailDebugInfo"></div>
+				
+				<div class="modal-section">
+					<h3>📋 Структурированные данные</h3>
+					<div id="detailModalStructuredData"></div>
 				</div>
-				<div class="detail-section">
-					<h4>📋 Информация:</h4>
-					<div class="detail-info-grid" id="detailInfoGrid"></div>
+				
+				<div class="modal-section">
+					<h3>📄 Сырой текст</h3>
+					<div id="detailModalRawText"></div>
 				</div>
-				<div class="detail-section">
-					<h4>📋 Изображение:</h4>
-					<img id="detailImage" class="detail-image" src="" alt="Full size image" onclick="closeDetailModal()">
+				
+				<div class="modal-section">
+					<h3>📝 Отладочная информация</h3>
+					<div id="detailModalDebugInfo"></div>
 				</div>
 			</div>
 		</div>
@@ -1228,7 +905,7 @@ func main() {
 						tableHTML += '<td>' + (item.title || '') + '</td>';
 						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
 						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
-						tableHTML += '<td>' + (item.price || '') + '</td>';
+						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
 						tableHTML += '</tr>';
@@ -1266,51 +943,128 @@ func main() {
 				}
 			});
 
-			function openDetailModal(text, info, imageData, debugInfo, hasItems, ...items) {
-				const detailText = document.getElementById('detailText');
-				const detailDebugInfo = document.getElementById('detailDebugInfo');
-				const detailInfoGrid = document.getElementById('detailInfoGrid');
-				const detailImage = document.getElementById('detailImage');
+			function openDetailModalFromData(element) {
+				const rawText = element.getAttribute('data-raw-text');
+				const id = element.getAttribute('data-id');
+				const imageData = element.getAttribute('data-image');
+				const debugInfo = element.getAttribute('data-debug');
+				const hasItems = element.getAttribute('data-items') === 'true';
+				const structuredItemsJson = element.getAttribute('data-structured-items');
 				
-				// Устанавливаем текст
-				detailText.textContent = text || 'Нет данных';
+				console.log('openDetailModalFromData called with:', {rawText, id, imageData, debugInfo, hasItems, structuredItemsJson});
 				
-				// Устанавливаем debug info
-				detailDebugInfo.textContent = debugInfo || 'Нет debug информации';
-				
-				// Очищаем информацию
-				detailInfoGrid.innerHTML = '';
-				
-				// Добавляем информацию о записи
-				if (info) {
-					const infoItem = document.createElement('div');
-					infoItem.className = 'detail-info-item';
-					infoItem.innerHTML = '<div class="detail-info-label">Дата создания:</div><div class="detail-info-value">' + info + '</div>';
-					detailInfoGrid.appendChild(infoItem);
+				let items = [];
+				if (hasItems && structuredItemsJson) {
+					try {
+						items = JSON.parse(structuredItemsJson);
+						console.log('Parsed items:', items);
+					} catch (e) {
+						console.error('Error parsing structured items:', e);
+						items = [];
+					}
 				}
 				
-				// Добавляем информацию о предметах
-				if (hasItems && items.length > 0) {
-					items.forEach((item, index) => {
-						const itemInfo = document.createElement('div');
-						itemInfo.className = 'detail-info-item';
-						itemInfo.innerHTML = '<div class="detail-info-label">Предмет ' + (index + 1) + ':</div><div class="detail-info-value"><strong>Название:</strong> ' + (item.title || 'Не указано') + '<br><strong>Краткое название:</strong> ' + (item.titleShort || 'Не указано') + '<br><strong>Улучшение:</strong> ' + (item.enhancement || 'Не указано') + '<br><strong>Цена:</strong> ' + (item.price || 'Не указано') + '<br><strong>Пакет:</strong> ' + (item.package ? '✔️ Да' : '❌ Нет') + '<br><strong>Владелец:</strong> ' + (item.owner || 'Не указано') + '</div>';
-						detailInfoGrid.appendChild(itemInfo);
-					});
-				}
+				openDetailModal(rawText, id, imageData, debugInfo, hasItems, ...items);
+			}
+
+			function openDetailModal(text, id, imageData, debugInfo, hasItems, ...items) {
+				console.log('openDetailModal called with:', {text, id, imageData, debugInfo, hasItems, items});
+				
+				const modalTitle = document.getElementById('detailModalTitle');
+				const modalImage = document.getElementById('detailModalImage');
+				const modalDebugInfo = document.getElementById('detailModalDebugInfo');
+				const modalStructuredData = document.getElementById('detailModalStructuredData');
+				const modalRawText = document.getElementById('detailModalRawText');
+				
+				console.log('Found elements:', {
+					modalTitle: !!modalTitle,
+					modalImage: !!modalImage,
+					modalDebugInfo: !!modalDebugInfo,
+					modalStructuredData: !!modalStructuredData,
+					modalRawText: !!modalRawText
+				});
+				
+				// Устанавливаем заголовок
+				modalTitle.textContent = 'ШНЫРЬ НАМУТИЛ СКРИНШОТ #' + id;
 				
 				// Загружаем изображение
-				if (imageData) {
-					detailImage.src = 'data:image/png;base64,' + imageData;
-					detailImage.style.display = 'block';
+				if (imageData && imageData !== '') {
+					modalImage.src = 'data:image/png;base64,' + imageData;
+					modalImage.style.display = 'block';
+					console.log('Image src set to:', modalImage.src.substring(0, 50) + '...');
 				} else {
-					detailImage.style.display = 'none';
+					modalImage.style.display = 'none';
+				}
+				
+				// Устанавливаем debug info
+				modalDebugInfo.textContent = debugInfo || 'Нет debug информации';
+				
+				// Устанавливаем сырой текст
+				modalRawText.textContent = text || 'Нет данных';
+				
+				console.log('hasItems:', hasItems, 'items length:', items.length);
+				
+				// Обрабатываем структурированные данные
+				if (hasItems && items.length > 0) {
+					console.log('Processing items:', items);
+					const cheapestItems = new Set();
+					
+					// Группируем предметы по уровню улучшения и package
+					const enhancementGroups = {};
+					items.forEach(item => {
+						const enhancement = item.enhancement || '';
+						const isPackage = item.package || false;
+						const groupKey = enhancement + '_' + (isPackage ? 'package' : 'nopackage');
+						
+						if (!enhancementGroups[groupKey]) {
+							enhancementGroups[groupKey] = [];
+						}
+						enhancementGroups[groupKey].push(item);
+					});
+					
+					// Находим самые дешевые предметы в каждой группе
+					Object.values(enhancementGroups).forEach(group => {
+						if (group.length > 0) {
+							const cheapest = group.reduce((min, item) => {
+								const priceValue = parseFloat((item.price || '0').replace(/[^\d.]/g, ''));
+								const minPriceValue = parseFloat((min.price || '0').replace(/[^\d.]/g, ''));
+								return priceValue < minPriceValue ? item : min;
+							});
+							cheapestItems.add(cheapest);
+						}
+					});
+					
+					let tableHTML = '<table class="structured-table">';
+					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Пакет</th><th>Владелец</th></tr></thead>';
+					tableHTML += '<tbody>';
+					
+					items.forEach(item => {
+						const isCheapest = cheapestItems.has(item);
+						const rowClass = isCheapest ? (item.package ? 'cheapest-package' : 'cheapest') : '';
+						tableHTML += '<tr class="' + rowClass + '">';
+						tableHTML += '<td>' + (item.title || '') + '</td>';
+						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
+						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
+						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
+						tableHTML += '<td>' + (item.package ? '✔️' : '❌') + '</td>';
+						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '</tr>';
+					});
+					
+					tableHTML += '</tbody></table>';
+					console.log('Generated table HTML:', tableHTML);
+					modalStructuredData.innerHTML = tableHTML;
+					console.log('Table HTML set to modalStructuredData');
+				} else {
+					console.log('No items to display');
+					modalStructuredData.innerHTML = '<p>Нет структурированных данных</p>';
 				}
 				
 				// Показываем модальное окно
 				const detailModal = document.getElementById('detailModal');
 				detailModal.style.display = 'block';
 				document.body.style.overflow = 'hidden';
+				console.log('Modal displayed');
 			}
 			
 			function closeDetailModal() {
@@ -1333,37 +1087,80 @@ func main() {
 				}
 			});
 			
+			// Функция для форматирования цены с пробелами
+			function formatPrice(price) {
+				if (!price) return '';
+				// Убираем все нецифровые символы
+				const cleanPrice = price.replace(/[^\d.]/g, '');
+				if (!cleanPrice) return price;
+				
+				// Добавляем пробелы каждые 3 цифры справа
+				let result = '';
+				for (let i = 0; i < cleanPrice.length; i++) {
+					if (i > 0 && (cleanPrice.length - i) % 3 === 0) {
+						result += ' ';
+					}
+					result += cleanPrice[i];
+				}
+				return result;
+			}
+
 			// Функция для выделения самых дешевых предметов в главной таблице
 			function highlightCheapestItems() {
+				console.log('highlightCheapestItems called');
 				const structuredTables = document.querySelectorAll('.structured-table table');
-				structuredTables.forEach(table => {
+				console.log('Found structured tables:', structuredTables.length);
+				
+				structuredTables.forEach(function(table, tableIndex) {
+					console.log('Processing table ' + tableIndex);
 					const rows = table.querySelectorAll('tr:not(:first-child)'); // Исключаем заголовок
+					console.log('Found ' + rows.length + ' data rows');
 					const enhancementGroups = {};
 					
-					// Группируем предметы по уровню улучшения
-					rows.forEach(row => {
+					// Группируем предметы по уровню улучшения и package
+					rows.forEach(function(row, rowIndex) {
 						const cells = row.querySelectorAll('td');
-						if (cells.length >= 4) {
+						if (cells.length >= 5) {
 							const enhancement = cells[2].textContent.trim();
 							const price = cells[3].textContent.trim();
-							const priceValue = parseFloat(price.replace(/[^\d.]/g, ''));
+							const package = cells[4].textContent.trim();
+							const priceValue = parseFloat(price.replace(/[^\d]/g, ''));
+							
+							console.log('Row ' + rowIndex + ': enhancement="' + enhancement + '", price="' + price + '", package="' + package + '", priceValue=' + priceValue);
 							
 							if (enhancement && !isNaN(priceValue)) {
-								if (!enhancementGroups[enhancement]) {
-									enhancementGroups[enhancement] = [];
+								// Создаем ключ группы: enhancement + package
+								const groupKey = enhancement + '_' + (package.includes('✔️') ? 'package' : 'nopackage');
+								if (!enhancementGroups[groupKey]) {
+									enhancementGroups[groupKey] = [];
 								}
-								enhancementGroups[enhancement].push({row, priceValue});
+								enhancementGroups[groupKey].push({
+									row: row, 
+									priceValue: priceValue, 
+									isPackage: package.includes('✔️')
+								});
 							}
 						}
 					});
 					
-					// Находим и выделяем самые дешевые предметы
-					Object.values(enhancementGroups).forEach(group => {
+					console.log('Enhancement groups:', enhancementGroups);
+					
+					// Находим и выделяем самые дешевые предметы в каждой группе
+					Object.keys(enhancementGroups).forEach(function(groupKey) {
+						const group = enhancementGroups[groupKey];
+						console.log('Processing group ' + groupKey + ' with ' + group.length + ' items');
 						if (group.length > 0) {
-							const cheapest = group.reduce((min, item) => 
-								item.priceValue < min.priceValue ? item : min
-							);
-							cheapest.row.classList.add('cheapest-item');
+							const cheapest = group.reduce(function(min, item) {
+								return item.priceValue < min.priceValue ? item : min;
+							});
+							console.log('Cheapest in group ' + groupKey + ': price=' + cheapest.priceValue + ', isPackage=' + cheapest.isPackage);
+							
+							// Применяем соответствующий класс в зависимости от package
+							if (cheapest.isPackage) {
+								cheapest.row.classList.add('cheapest-package');
+							} else {
+								cheapest.row.classList.add('cheapest');
+							}
 						}
 					});
 				});
@@ -1377,6 +1174,26 @@ func main() {
 		t, err := template.New("web").Funcs(template.FuncMap{
 			"base64encode": func(data []byte) string {
 				return base64.StdEncoding.EncodeToString(data)
+			},
+			"jsEscape": func(s string) string {
+				return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
+			},
+			"formatPrice": func(price string) string {
+				// Убираем все нецифровые символы
+				cleanPrice := strings.ReplaceAll(strings.ReplaceAll(price, ",", ""), " ", "")
+				if cleanPrice == "" {
+					return price
+				}
+
+				// Добавляем пробелы каждые 3 цифры справа
+				var result string
+				for i, char := range cleanPrice {
+					if i > 0 && (len(cleanPrice)-i)%3 == 0 {
+						result += " "
+					}
+					result += string(char)
+				}
+				return result
 			},
 			"sequence": func(current, total int) []int {
 				var pages []int
