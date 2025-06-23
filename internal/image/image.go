@@ -112,14 +112,12 @@ var GetScrollHeightDiff = func(img1 image.Image, img2 image.Image) int {
 }
 
 // Функция для объединения изображений
-func CombineImages(imgs []image.Image, smallImg []image.Image) (*image.RGBA, error) {
+func CombineImages(imgs []image.Image, smallImgs []image.Image, extraImg image.Image, extraOffset int) (*image.RGBA, error) {
 	offsetDif := 30
 	offset := 0
-	// Вычисляем размеры итогового изображения
 	width := imgs[0].Bounds().Dx()
 	height := imgs[0].Bounds().Dy()
 
-	// Создаем новое изображение для объединения
 	combinedImg := image.NewRGBA(image.Rect(0, 0, width, 1000))
 	draw.Draw(combinedImg, imgs[0].Bounds(), imgs[0], image.Point{}, draw.Over)
 
@@ -129,9 +127,15 @@ func CombineImages(imgs []image.Image, smallImg []image.Image) (*image.RGBA, err
 	}
 
 	offsetDif = 10
-	for _, img := range smallImg[0:] {
+	for _, img := range smallImgs {
 		offset += offsetDif
 		draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
+	}
+
+	// Добавляем extraImg с extraOffset, если он не nil
+	if extraImg != nil {
+		offset += extraOffset
+		draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), extraImg, image.Point{}, draw.Over)
 	}
 
 	return combinedImg, nil

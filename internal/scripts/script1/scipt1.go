@@ -14,6 +14,7 @@ import (
 	"octopus/internal/screen"
 	"octopus/internal/screenshot"
 	"octopus/internal/scripts"
+	"os"
 
 	"github.com/tarm/serial"
 )
@@ -60,7 +61,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return img
 	}
 
-	var _ = func() image.Image {
+	var saveScreenShotFull = func() image.Image {
 		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
 		return img
 	}
@@ -105,7 +106,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 	// Функция для выполнения полного цикла скриншотов и OCR
 	var performScreenshotAndOCR = func(buttonPressed bool) error {
 		counter := 0
-		maxCounter := 20
+		maxCounter := 40
 		scrollRPx := 26
 
 		// Список для хранения всех скриншотов
@@ -113,6 +114,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		var smallScreenshots []image.Image
 
 		img := captureScreenShot()
+		saveScreenShotFull()
 		screenshots = append(screenshots, img)
 
 		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
@@ -148,7 +150,39 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 				}
 			}
 
-			finalImage, _ := imageInternal.CombineImages(screenshots, smallScreenshots)
+			var finalImage image.Image
+			// Проверка stripe_diff между последним и предпоследним smallScreenshots
+			if len(smallScreenshots) >= 2 {
+				prev := smallScreenshots[len(smallScreenshots)-2]
+				last := smallScreenshots[len(smallScreenshots)-1]
+				// Сохраняем два последних скриншота в файлы
+				f1, _ := os.Create("last_prev.png")
+				defer f1.Close()
+				png.Encode(f1, prev)
+				f2, _ := os.Create("last.png")
+				defer f2.Close()
+				png.Encode(f2, last)
+				diff, err := imageInternal.LastColorStripeDistanceDiff(prev, last, 26, 20)
+				if err != nil {
+					fmt.Printf("Ошибка stripe diff: %v\n", err)
+				} else {
+					finalImage, _ = imageInternal.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], smallScreenshots[len(smallScreenshots)-1], diff)
+					fmt.Printf("Разница stripe diff между последним и предпоследним скриншотом: %d\n", diff)
+				}
+			} else if len(smallScreenshots) == 1 {
+				prev := screenshots[len(screenshots)-1]
+				last := smallScreenshots[len(smallScreenshots)-1]
+				diff, err := imageInternal.LastColorStripeDistanceDiff(prev, last, 26, 20)
+				if err != nil {
+					fmt.Printf("Ошибка stripe diff: %v\n", err)
+				} else {
+					finalImage, _ = imageInternal.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], nil, 0)
+					fmt.Printf("Разница stripe diff между последним и предпоследним скриншотом: %d\n", diff)
+				}
+			} else {
+				finalImage, _ = imageInternal.CombineImages(screenshots, nil, nil, 0)
+			}
+
 			combinedImg := imageInternal.CropOpacityPixel(finalImage)
 			bounds := combinedImg.Bounds()
 			cropRect := image.Rect(40, topCrop, bounds.Dx()-17, bounds.Dy())
@@ -338,70 +372,70 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		// прокликиваем первую страницу
 		points := imageInternal.FindItemPositionsByTextColor(img, 80)
 		fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
-		if len(points) > 2 {
+		if len(points) > 0 {
 			fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
 			for i, point := range points {
 				fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
 				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
 			}
 		} else {
-			fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
+			fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 0, найдено: %d)\n", len(points))
 		}
 
-		// clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
+		// clickItem(config.Coordinates{X: marginX + 80, Y: marginY + c.Click.Item1.Y})
 	}
 
-	// берем в фокус и делаем скрин
-	scripts.ClickCoordinates(port, c, c.Click.Item1)
-	img = captureScreenShot()
-	clickEveryItemAnsScreenShot(img)
-
-	// // берем в фокус
+	// // берем в фокус и делаем скрин
 	// scripts.ClickCoordinates(port, c, c.Click.Item1)
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-	// cycles := 0
-	// for cycles < 2 {
-	// 	img := captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+	// берем в фокус
+	scripts.ClickCoordinates(port, c, c.Click.Item1)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+	cycles := 0
+	for cycles < 2 {
+		img := captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	img = captureScreenShot()
-	// 	SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// 	maxSixButtonClicks := 0
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-	// 		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// 		img = captureScreenShot()
-	// 		clickEveryItemAnsScreenShot(img)
-	// 		img = captureScreenShot()
-	// 		SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// 		maxSixButtonClicks += 1
-	// 	}
+		img = captureScreenShot()
+		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+		maxSixButtonClicks := 0
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-	// 	// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+		for SixButtonPx > 30 && maxSixButtonClicks < 50 {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+			img = captureScreenShot()
+			clickEveryItemAnsScreenShot(img)
+			img = captureScreenShot()
+			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+			maxSixButtonClicks += 1
+		}
 
-	// 	cycles += 1
-	// }
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+
+		cycles += 1
+	}
 
 }
 
