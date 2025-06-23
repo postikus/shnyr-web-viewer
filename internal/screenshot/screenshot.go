@@ -1,6 +1,8 @@
 package screenshot
 
 import (
+	"bytes"
+	"database/sql"
 	"fmt"
 	"image"
 	"image/png"
@@ -13,6 +15,14 @@ import (
 
 	"github.com/kbinani/screenshot"
 )
+
+// Глобальная переменная для базы данных
+var db *sql.DB
+
+// SetDatabase устанавливает глобальную переменную базы данных
+func SetDatabase(database *sql.DB) {
+	db = database
+}
 
 // CaptureScreenshot захватывает скриншот в память и возвращает декодированное изображение
 func CaptureScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
@@ -38,7 +48,7 @@ func CaptureFullScreen() (image.Image, error) {
 	return img, nil
 }
 
-func SaveScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
+func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Image, error) {
 	// Получаем список файлов в папке ./imgs/
 	files, err := filepath.Glob("./imgs/*")
 	if err != nil {
@@ -95,6 +105,21 @@ func SaveScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
 			log.Printf("Ошибка OCR: %v", err)
 		} else {
 			fmt.Printf("OCR результат:\n%s\n", ocrResult)
+
+			// Парсим результат OCR
+			debugInfo, jsonData := ocr.ParseOCRResult(ocrResult)
+
+			// Конвертируем изображение в байты
+			imageBytes, err := imageToBytes(croppedImg)
+			if err != nil {
+				log.Printf("Ошибка конвертации изображения: %v", err)
+			} else {
+				// Сохраняем результат в базу данных
+				err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, imageBytes, cfg)
+				if err != nil {
+					log.Printf("Ошибка сохранения в БД: %v", err)
+				}
+			}
 		}
 
 		return croppedImg, nil
@@ -102,7 +127,7 @@ func SaveScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
 }
 
 var SaveItemOffersWithoutButtondScreenshot = func(c *config.Config) {
-	SaveScreenshot(c.Screenshot.ItemOffersListWithoutButtons)
+	SaveScreenshot(c.Screenshot.ItemOffersListWithoutButtons, c)
 }
 
 // SaveScreenshotFull захватывает и сохраняет скриншот указанной области без обрезки краёв для отладки
@@ -153,4 +178,54 @@ func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
 
 		return img, nil
 	}
+}
+
+// saveOCRResultToDB сохраняет результат OCR в базу данных
+func saveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, imageData []byte, config *config.Config) error {
+	if db == nil {
+		return fmt.Errorf("база данных не инициализирована")
+	}
+
+	// Проверяем настройку сохранения в БД
+	if config.SaveToDB != 1 {
+		log.Printf("Сохранение в БД отключено (save_to_db = %d)", config.SaveToDB)
+		return nil
+	}
+
+	// Создаем таблицу, если она не существует
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS ocr_results (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		image_path VARCHAR(255) NOT NULL,
+		image_data LONGBLOB,
+		ocr_text LONGTEXT,
+		debug_info LONGTEXT,
+		json_data LONGTEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`
+
+	_, err := db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("ошибка создания таблицы: %v", err)
+	}
+
+	// Вставляем результат OCR с изображением
+	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data) VALUES (?, ?, ?, ?, ?)`
+	_, err = db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData)
+	if err != nil {
+		return fmt.Errorf("ошибка вставки данных: %v", err)
+	}
+
+	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s", imagePath)
+	return nil
+}
+
+// imageToBytes конвертирует изображение в байты в формате PNG
+func imageToBytes(img image.Image) ([]byte, error) {
+	var buf bytes.Buffer
+	err := png.Encode(&buf, img)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка кодирования изображения: %v", err)
+	}
+	return buf.Bytes(), nil
 }

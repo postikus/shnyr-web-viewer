@@ -1,0 +1,58 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+
+	_ "github.com/go-sql-driver/mysql"
+)
+
+func main() {
+	// Подключаемся к MySQL без указания базы
+	dsn := "root:root@tcp(108.181.194.102:3306)/"
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatalf("Ошибка подключения к MySQL: %v", err)
+	}
+	defer db.Close()
+
+	// Удаляем базу, если есть
+	_, err = db.Exec("DROP DATABASE IF EXISTS octopus")
+	if err != nil {
+		log.Fatalf("Ошибка удаления базы: %v", err)
+	}
+	fmt.Println("База данных octopus удалена (если была)")
+
+	// Создаём базу
+	_, err = db.Exec("CREATE DATABASE octopus CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+	if err != nil {
+		log.Fatalf("Ошибка создания базы: %v", err)
+	}
+	fmt.Println("База данных octopus создана")
+
+	// Подключаемся к новой базе
+	db2, err := sql.Open("mysql", dsn+"octopus")
+	if err != nil {
+		log.Fatalf("Ошибка подключения к новой базе: %v", err)
+	}
+	defer db2.Close()
+
+	// Создаём таблицу
+	tableSQL := `CREATE TABLE ocr_results (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		image_path VARCHAR(255) NOT NULL,
+		image_data LONGBLOB,
+		ocr_text LONGTEXT,
+		debug_info LONGTEXT,
+		json_data LONGTEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`
+	_, err = db2.Exec(tableSQL)
+	if err != nil {
+		log.Fatalf("Ошибка создания таблицы: %v", err)
+	}
+	fmt.Println("Таблица ocr_results создана")
+
+	fmt.Println("Инициализация базы завершена!")
+}

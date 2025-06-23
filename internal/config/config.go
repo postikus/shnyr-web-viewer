@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"log"
+
+	"github.com/spf13/viper"
 )
 
 // Структура для координат элементов
@@ -56,6 +57,7 @@ type Config struct {
 	BaudRate   int        `mapstructure:"baud_rate"`
 	Screenshot Screenshot `mapstructure:"screenshot"`
 	Click      Click      `mapstructure:"click"`
+	SaveToDB   int        `mapstructure:"save_to_db"`
 }
 
 var InitConfig = func() (error, Config) {

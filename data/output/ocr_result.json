@@ -1,5 +1,5 @@
 {
-    "image_file": "./imgs/screenshot10.png",
+    "image_file": "./imgs/screenshot9.png",
     "processing": {
         "enlargement": "4x",
         "grayscale": true,
@@ -12,14 +12,15 @@
     },
     "text_recognition": {
         "success": true,
-        "raw_text": "+6 Dwarven Chain Gloves\nPrice: 800 000, owner: AviKsik\n",
+        "raw_text": "+6 Blades of Delusion - Earth\nPrice: 499 000 000, owner: 9090\n",
         "structured_data": [
     {
-        "title": "+6 dwarven chain gloves",
-        "price": "800000",
+        "title": "+6 blades of delusion - earth",
+        "price": "499000000",
         "package": false,
-        "owner": "aviksik"
+        "owner": "9090"
     }
+
 ],
         "confidence": "unknown"
     }

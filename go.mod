@@ -1,6 +1,6 @@
 module octopus
 
-go 1.21
+go 1.21.0
 
 toolchain go1.23.5
 
@@ -12,8 +12,10 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gen2brain/shm v0.1.0 // indirect
+	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect

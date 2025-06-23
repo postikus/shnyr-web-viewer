@@ -1,8 +1,11 @@
 package scpript1
 
 import (
+	"bytes"
+	"database/sql"
 	"fmt"
 	"image"
+	"image/png"
 	"io/ioutil"
 	"log"
 	"octopus/internal/config"
@@ -15,7 +18,7 @@ import (
 	"github.com/tarm/serial"
 )
 
-var Run = func(port *serial.Port, c *config.Config) {
+var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	// Количество пикселей для отрезания сверху
 	topOffset := 23
@@ -53,7 +56,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 	}
 
 	var saveScreenShot = func() image.Image {
-		img, _ := screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
+		img, _ := screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361}, c)
 		return img
 	}
 
@@ -147,10 +150,26 @@ var Run = func(port *serial.Port, c *config.Config) {
 			scripts.ScrollUp(port, c, counter+5)
 
 			result, err := ocr.RunOCR(fileName)
+
 			if err != nil {
 				fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
 			} else {
 				fmt.Println(result)
+
+				// Парсим результат OCR
+				debugInfo, jsonData := ocr.ParseOCRResult(result)
+
+				// Конвертируем изображение в байты
+				imageBytes, err := imageToBytes(croppedCombinedImg)
+				if err != nil {
+					log.Printf("Ошибка конвертации изображения: %v", err)
+				} else {
+					// Сохраняем результат в базу данных
+					err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, imageBytes, c)
+					if err != nil {
+						log.Printf("Ошибка сохранения в БД: %v", err)
+					}
+				}
 			}
 
 			return true
@@ -182,7 +201,7 @@ var Run = func(port *serial.Port, c *config.Config) {
 
 	// берем в фокус и делаем скрин
 	scripts.ClickCoordinates(port, c, c.Click.Item1)
-	img = saveScreenShot()
+	img = captureScreenShot()
 	clickEveryItemAnsScreenShot(img)
 
 	// // берем в фокус
@@ -232,4 +251,50 @@ var Run = func(port *serial.Port, c *config.Config) {
 	// 	cycles += 1
 	// }
 
+}
+
+// saveOCRResultToDB сохраняет результат OCR в базу данных
+func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonData string, imageData []byte, cfg *config.Config) error {
+	// Проверяем настройку сохранения в БД
+	if cfg.SaveToDB != 1 {
+		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
+		return nil
+	}
+
+	// Создаем таблицу, если она не существует
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS ocr_results (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		image_path VARCHAR(255) NOT NULL,
+		image_data LONGBLOB,
+		ocr_text LONGTEXT,
+		debug_info LONGTEXT,
+		json_data LONGTEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`
+
+	_, err := db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("ошибка создания таблицы: %v", err)
+	}
+
+	// Вставляем результат OCR с изображением
+	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data) VALUES (?, ?, ?, ?, ?)`
+	_, err = db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData)
+	if err != nil {
+		return fmt.Errorf("ошибка вставки данных: %v", err)
+	}
+
+	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s", imagePath)
+	return nil
+}
+
+// imageToBytes конвертирует изображение в байты в формате PNG
+func imageToBytes(img image.Image) ([]byte, error) {
+	var buf bytes.Buffer
+	err := png.Encode(&buf, img)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка кодирования изображения: %v", err)
+	}
+	return buf.Bytes(), nil
 }
