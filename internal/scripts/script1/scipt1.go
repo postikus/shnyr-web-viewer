@@ -232,18 +232,18 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		img = captureScreenShot()
 		clickEveryItemAnsScreenShot(img)
 
-		// img = captureScreenShot()
-		// SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-		// maxSixButtonClicks := 0
+		img = captureScreenShot()
+		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+		maxSixButtonClicks := 0
 
-		// for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-		// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-		// 	img = captureScreenShot()
-		// 	clickEveryItemAnsScreenShot(img)
-		// 	img = captureScreenShot()
-		// 	SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-		// 	maxSixButtonClicks += 1
-		// }
+		for SixButtonPx > 30 && maxSixButtonClicks < 5 {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+			img = captureScreenShot()
+			clickEveryItemAnsScreenShot(img)
+			img = captureScreenShot()
+			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+			maxSixButtonClicks += 1
+		}
 
 		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})

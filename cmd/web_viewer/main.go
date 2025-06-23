@@ -634,8 +634,8 @@ func main() {
 				/* Большие экраны */
 				@media (min-width: 1200px) {
 					.container {
-						max-width: 1400px;
-						margin: 0 auto;
+						width: 100%;
+						margin: 0;
 					}
 					
 					.text-cell pre {
@@ -644,6 +644,125 @@ func main() {
 					
 					.image-cell img {
 						max-width: 350px;
+					}
+				}
+				
+				/* Модальное окно для изображений */
+				.modal {
+					display: none;
+					position: fixed;
+					z-index: 2000;
+					left: 0;
+					top: 0;
+					width: 100%;
+					height: 100%;
+					background-color: rgba(0,0,0,0.9);
+					backdrop-filter: blur(5px);
+				}
+				
+				.modal-content {
+					position: relative;
+					margin: 2% auto;
+					padding: 20px;
+					width: 90%;
+					height: 90%;
+					background: white;
+					border-radius: 12px;
+					box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+					overflow: auto;
+					animation: modalFadeIn 0.3s ease-out;
+				}
+				
+				@keyframes modalFadeIn {
+					from {
+						opacity: 0;
+						transform: scale(0.9) translateY(-20px);
+					}
+					to {
+						opacity: 1;
+						transform: scale(1) translateY(0);
+					}
+				}
+				
+				.modal-image {
+					width: 100%;
+					height: auto;
+					max-width: none;
+					border-radius: 8px;
+					box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+					cursor: zoom-out;
+					transition: transform 0.2s ease;
+				}
+				
+				.modal-image:hover {
+					transform: scale(1.02);
+				}
+				
+				.close-modal {
+					position: absolute;
+					top: 15px;
+					right: 20px;
+					color: #aaa;
+					font-size: 28px;
+					font-weight: bold;
+					cursor: pointer;
+					background: rgba(255,255,255,0.9);
+					border-radius: 50%;
+					width: 40px;
+					height: 40px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					transition: all 0.3s ease;
+					z-index: 2001;
+				}
+				
+				.close-modal:hover,
+				.close-modal:focus {
+					color: #000;
+					background: white;
+					transform: scale(1.1);
+				}
+				
+				.modal-header {
+					text-align: center;
+					margin-bottom: 20px;
+					padding-bottom: 15px;
+					border-bottom: 2px solid #f0f0f0;
+				}
+				
+				.modal-title {
+					font-size: 1.5em;
+					color: #333;
+					margin: 0;
+					font-weight: 600;
+				}
+				
+				.modal-info {
+					font-size: 0.9em;
+					color: #666;
+					margin-top: 5px;
+				}
+				
+				/* Адаптивность модального окна */
+				@media (max-width: 768px) {
+					.modal-content {
+						width: 95%;
+						height: 95%;
+						margin: 2.5% auto;
+						padding: 15px;
+					}
+					
+					.close-modal {
+						top: 10px;
+						right: 15px;
+						width: 35px;
+						height: 35px;
+						font-size: 24px;
+					}
+					
+					.modal-title {
+						font-size: 1.2em;
 					}
 				}
 			</style>
@@ -689,7 +808,7 @@ func main() {
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
-					<img src="data:image/png;base64,{{base64encode .ImageData}}" />
+					<img src="data:image/png;base64,{{base64encode .ImageData}}" onclick="openImageModal('{{base64encode .ImageData}}', 'OCR Result #{{.ID}}', '{{.CreatedAt}}')" style="cursor: pointer;" />
 					{{else}}
 					<div class="no-data">No image data</div>
 					{{end}}
@@ -698,13 +817,14 @@ func main() {
 					{{if .Items}}
 					<div class="structured-table">
 					<table>
-					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Owner</th></tr>
+					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>
 					{{range .Items}}
 					<tr>
 					<td>{{.Title}}</td>
 					<td>{{.TitleShort}}</td>
 					<td>{{.Enhancement}}</td>
 					<td>{{.Price}}</td>
+					<td>{{if .Package}}✔️{{end}}</td>
 					<td>{{.Owner}}</td>
 					</tr>
 					{{end}}
@@ -768,6 +888,54 @@ func main() {
 				</div>
 			</div>
 		</div>
+		
+		<!-- Модальное окно для изображений -->
+		<div id="imageModal" class="modal">
+			<div class="modal-content">
+				<span class="close-modal" onclick="closeImageModal()">&times;</span>
+				<div class="modal-header">
+					<h3 class="modal-title" id="modalTitle">Изображение</h3>
+					<div class="modal-info" id="modalInfo">OCR Result</div>
+				</div>
+				<img id="modalImage" class="modal-image" src="" alt="Full size image" onclick="closeImageModal()">
+			</div>
+		</div>
+		
+		<script>
+			function openImageModal(imageData, title, info) {
+				const modal = document.getElementById('imageModal');
+				const modalImage = document.getElementById('modalImage');
+				const modalTitle = document.getElementById('modalTitle');
+				const modalInfo = document.getElementById('modalInfo');
+				
+				modalImage.src = 'data:image/png;base64,' + imageData;
+				modalTitle.textContent = title;
+				modalInfo.textContent = info;
+				
+				modal.style.display = 'block';
+				document.body.style.overflow = 'hidden'; // Блокируем скролл страницы
+			}
+			
+			function closeImageModal() {
+				const modal = document.getElementById('imageModal');
+				modal.style.display = 'none';
+				document.body.style.overflow = 'auto'; // Возвращаем скролл страницы
+			}
+			
+			// Закрытие модального окна при клике вне изображения
+			document.getElementById('imageModal').addEventListener('click', function(e) {
+				if (e.target === this) {
+					closeImageModal();
+				}
+			});
+			
+			// Закрытие модального окна по клавише Escape
+			document.addEventListener('keydown', function(e) {
+				if (e.key === 'Escape') {
+					closeImageModal();
+				}
+			});
+		</script>
 		</body></html>`
 
 		t, err := template.New("web").Funcs(template.FuncMap{
