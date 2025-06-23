@@ -77,7 +77,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var checkAndClickScreenScroll = func(counter int) (int, int) {
 		img := captureScreenShot()
-		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 332)
+		r, _, _, _ := imageInternal.GetPixelColor(img, 297, 340)
 		if r < 50 {
 			scripts.FastClick(port, c)
 		}
@@ -189,7 +189,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		points := imageInternal.FindItemPositionsByTextColor(img, 100)
+		points := imageInternal.FindItemPositionsByTextColor(img, 40)
 		if len(points) > 2 {
 			for _, point := range points {
 				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
@@ -236,7 +236,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
 		maxSixButtonClicks := 0
 
-		for SixButtonPx > 30 && maxSixButtonClicks < 5 {
+		for SixButtonPx > 30 && maxSixButtonClicks < 50 {
 			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
 			img = captureScreenShot()
 			clickEveryItemAnsScreenShot(img)
@@ -245,7 +245,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 			maxSixButtonClicks += 1
 		}
 
-		// scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
 
 		cycles += 1

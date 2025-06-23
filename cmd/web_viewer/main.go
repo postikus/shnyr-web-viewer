@@ -421,7 +421,7 @@ func main() {
 					border-radius: 4px;
 					overflow: visible;
 					box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-					max-width: 300px;
+					max-width: 360px; /* Увеличено на 20% с 300px */
 				}
 				
 				.structured-table table {
@@ -744,6 +744,49 @@ func main() {
 					margin-top: 5px;
 				}
 				
+				.modal-structured-data {
+					margin-top: 20px;
+					padding: 15px;
+					background: #f8f9fa;
+					border-radius: 8px;
+					border: 1px solid #e0e0e0;
+				}
+				
+				.modal-structured-table {
+					width: 100%;
+					border-collapse: collapse;
+					margin-top: 10px;
+					background: white;
+					border-radius: 6px;
+					overflow: hidden;
+					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+				}
+				
+				.modal-structured-table th {
+					background: #4CAF50;
+					color: white;
+					padding: 8px 6px;
+					font-size: 0.8em;
+					font-weight: 600;
+					text-align: left;
+				}
+				
+				.modal-structured-table td {
+					padding: 6px 4px;
+					border: 1px solid #e0e0e0;
+					font-size: 0.75em;
+					white-space: normal;
+					word-wrap: break-word;
+				}
+				
+				.modal-structured-table tr:nth-child(even) {
+					background-color: #f8f9fa;
+				}
+				
+				.modal-structured-table tr:hover {
+					background-color: #f0f8ff;
+				}
+				
 				/* Адаптивность модального окна */
 				@media (max-width: 768px) {
 					.modal-content {
@@ -808,7 +851,7 @@ func main() {
 				<td class="id-cell">{{.ID}}</td>
 				<td class="image-cell">
 					{{if .ImageData}}
-					<img src="data:image/png;base64,{{base64encode .ImageData}}" onclick="openImageModal('{{base64encode .ImageData}}', 'OCR Result #{{.ID}}', '{{.CreatedAt}}')" style="cursor: pointer;" />
+					<img src="data:image/png;base64,{{base64encode .ImageData}}" onclick="openImageModal('{{base64encode .ImageData}}', '{{.ID}}', '{{.CreatedAt}}', {{if .Items}}true{{else}}false{{end}}, {{range $index, $item := .Items}}{{if $index}},{{end}}{title: '{{$item.Title}}', titleShort: '{{$item.TitleShort}}', enhancement: '{{$item.Enhancement}}', price: '{{$item.Price}}', package: {{$item.Package}}, owner: '{{$item.Owner}}'}{{end}})" style="cursor: pointer;" />
 					{{else}}
 					<div class="no-data">No image data</div>
 					{{end}}
@@ -894,23 +937,50 @@ func main() {
 			<div class="modal-content">
 				<span class="close-modal" onclick="closeImageModal()">&times;</span>
 				<div class="modal-header">
-					<h3 class="modal-title" id="modalTitle">Изображение</h3>
+					<h3 class="modal-title" id="modalTitle">ШНЫРЬ НАМУТИЛ СКРИНШОТ</h3>
 					<div class="modal-info" id="modalInfo">OCR Result</div>
 				</div>
 				<img id="modalImage" class="modal-image" src="" alt="Full size image" onclick="closeImageModal()">
+				<div id="modalStructuredData" class="modal-structured-data"></div>
 			</div>
 		</div>
 		
 		<script>
-			function openImageModal(imageData, title, info) {
+			function openImageModal(imageData, id, info, hasItems, ...items) {
 				const modal = document.getElementById('imageModal');
 				const modalImage = document.getElementById('modalImage');
 				const modalTitle = document.getElementById('modalTitle');
 				const modalInfo = document.getElementById('modalInfo');
+				const modalStructuredData = document.getElementById('modalStructuredData');
 				
 				modalImage.src = 'data:image/png;base64,' + imageData;
-				modalTitle.textContent = title;
+				modalTitle.textContent = 'ШНЫРЬ НАМУТИЛ СКРИНШОТ #' + id;
 				modalInfo.textContent = info;
+				
+				// Создаем таблицу структурированных данных
+				if (hasItems && items.length > 0) {
+					let tableHTML = '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 1.1em;">📋 Структурированные данные:</h4>';
+					tableHTML += '<table class="modal-structured-table">';
+					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>';
+					
+					items.forEach(item => {
+						tableHTML += '<tr>';
+						tableHTML += '<td>' + (item.title || '') + '</td>';
+						tableHTML += '<td>' + (item.titleShort || '') + '</td>';
+						tableHTML += '<td>' + (item.enhancement || '') + '</td>';
+						tableHTML += '<td>' + (item.price || '') + '</td>';
+						tableHTML += '<td>' + (item.package ? '✔️' : '') + '</td>';
+						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '</tr>';
+					});
+					
+					tableHTML += '</table>';
+					modalStructuredData.innerHTML = tableHTML;
+					modalStructuredData.style.display = 'block';
+				} else {
+					modalStructuredData.innerHTML = '<p style="margin: 0; color: #666; font-style: italic;">Нет структурированных данных</p>';
+					modalStructuredData.style.display = 'block';
+				}
 				
 				modal.style.display = 'block';
 				document.body.style.overflow = 'hidden'; // Блокируем скролл страницы
