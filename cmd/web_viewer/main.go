@@ -217,8 +217,18 @@ func main() {
 		<html>
 		<head>
 			<title>OCR Results</title>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<style>
 				* { box-sizing: border-box; }
+				
+				body { 
+					font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+					margin: 0; 
+					padding: 0; 
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					min-height: 100vh;
+					color: #333;
+				}
 				
 				.container {
 					width: 100%;
@@ -232,7 +242,7 @@ func main() {
 				.header {
 					background: linear-gradient(135deg, #4CAF50, #45a049);
 					color: white;
-					padding: 20px;
+					padding: 15px;
 					text-align: center;
 					margin: 0;
 					position: fixed;
@@ -244,23 +254,22 @@ func main() {
 				}
 				
 				.header h2 {
-					margin: 0 0 15px 0;
-					font-size: 2em;
+					margin: 0 0 10px 0;
+					font-size: 1.5em;
 					font-weight: 300;
 					text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 				}
 				
 				.search-container {
 					display: flex;
-					justify-content: center;
-					align-items: center;
-					gap: 10px;
-					max-width: 500px;
+					flex-direction: column;
+					gap: 8px;
+					max-width: 100%;
 					margin: 0 auto;
 				}
 				
 				.search-input {
-					flex: 1;
+					width: 100%;
 					padding: 12px 16px;
 					border: none;
 					border-radius: 25px;
@@ -284,6 +293,7 @@ func main() {
 					font-size: 16px;
 					transition: all 0.3s ease;
 					backdrop-filter: blur(10px);
+					width: 100%;
 				}
 				
 				.search-button:hover {
@@ -293,7 +303,7 @@ func main() {
 				}
 				
 				.clear-button {
-					padding: 12px 16px;
+					padding: 10px 16px;
 					background: rgba(255,255,255,0.1);
 					border: 2px solid rgba(255,255,255,0.2);
 					color: white;
@@ -302,6 +312,8 @@ func main() {
 					font-size: 14px;
 					transition: all 0.3s ease;
 					text-decoration: none;
+					text-align: center;
+					width: 100%;
 				}
 				
 				.clear-button:hover {
@@ -310,18 +322,18 @@ func main() {
 				}
 				
 				.content {
-					padding: 20px;
-					margin-top: 120px;
+					padding: 15px;
+					margin-top: 140px;
 				}
 				
 				.stats { 
 					text-align: center; 
-					margin: 20px 0; 
-					padding: 15px;
+					margin: 15px 0; 
+					padding: 12px;
 					background: #f8f9fa;
-					border-radius: 10px;
+					border-radius: 8px;
 					border-left: 4px solid #4CAF50;
-					font-size: 1.1em;
+					font-size: 0.9em;
 					color: #555;
 				}
 				
@@ -333,23 +345,34 @@ func main() {
 					border-radius: 8px;
 					color: #2e7d32;
 					font-weight: 500;
+					font-size: 0.9em;
+				}
+				
+				/* Мобильная таблица */
+				.mobile-table {
+					display: block;
+					width: 100%;
+					overflow-x: auto;
+					-webkit-overflow-scrolling: touch;
 				}
 				
 				table { 
 					border-collapse: collapse; 
 					width: 100%; 
-					margin-bottom: 30px;
+					margin-bottom: 20px;
 					background: white;
-					border-radius: 10px;
+					border-radius: 8px;
 					overflow: hidden;
-					box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+					box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+					min-width: 800px; /* Минимальная ширина для горизонтального скролла */
 				}
 				
 				th, td { 
 					border: 1px solid #e0e0e0; 
-					padding: 15px; 
+					padding: 8px; 
 					text-align: left; 
 					vertical-align: top;
+					font-size: 0.8em;
 				}
 				
 				th { 
@@ -357,8 +380,9 @@ func main() {
 					color: white;
 					font-weight: 600;
 					text-transform: uppercase;
-					font-size: 0.9em;
-					letter-spacing: 0.5px;
+					font-size: 0.75em;
+					letter-spacing: 0.3px;
+					white-space: nowrap;
 				}
 				
 				tr:nth-child(even) {
@@ -371,51 +395,53 @@ func main() {
 				}
 				
 				.image-cell img {
-					max-width: 300px;
-					max-height: 200px;
-					border-radius: 8px;
-					box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-					border: 2px solid #e0e0e0;
+					max-width: 150px;
+					max-height: 100px;
+					border-radius: 6px;
+					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+					border: 1px solid #e0e0e0;
 				}
 				
 				.text-cell pre {
-					max-width: 300px;
-					max-height: 200px;
+					max-width: 200px;
+					max-height: 150px;
 					overflow: auto;
 					background: #f8f9fa;
-					padding: 10px;
-					border-radius: 5px;
+					padding: 8px;
+					border-radius: 4px;
 					border: 1px solid #e0e0e0;
-					font-size: 0.85em;
-					line-height: 1.4;
+					font-size: 0.7em;
+					line-height: 1.3;
 					margin: 0;
 				}
 				
 				.structured-table {
 					border: 1px solid #ddd;
-					font-size: 11px;
-					border-radius: 5px;
+					font-size: 9px;
+					border-radius: 4px;
 					overflow: visible;
-					box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+					box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+					max-width: 300px;
 				}
 				
 				.structured-table table {
 					width: 100%;
 					margin: 0;
 					box-shadow: none;
+					min-width: auto;
 				}
 				
 				.structured-table th {
 					background: #6c757d;
 					color: white;
-					padding: 8px;
-					font-size: 10px;
+					padding: 4px 6px;
+					font-size: 8px;
 				}
 				
 				.structured-table td {
-					padding: 6px 8px;
+					padding: 3px 4px;
 					border: 1px solid #e0e0e0;
-					font-size: 10px;
+					font-size: 8px;
 					white-space: normal;
 					word-wrap: break-word;
 				}
@@ -426,22 +452,23 @@ func main() {
 				
 				.pagination { 
 					text-align: center; 
-					margin: 30px 0; 
-					padding: 20px;
+					margin: 20px 0; 
+					padding: 15px;
 					background: #f8f9fa;
-					border-radius: 10px;
+					border-radius: 8px;
 				}
 				
 				.pagination a, .pagination span { 
 					display: inline-block; 
-					padding: 12px 16px; 
+					padding: 8px 12px; 
 					text-decoration: none; 
 					border: 2px solid #4CAF50; 
-					margin: 0 4px; 
-					border-radius: 8px;
+					margin: 2px; 
+					border-radius: 6px;
 					font-weight: 500;
 					transition: all 0.3s ease;
-					min-width: 40px;
+					min-width: 35px;
+					font-size: 0.9em;
 				}
 				
 				.pagination a { 
@@ -452,8 +479,8 @@ func main() {
 				.pagination a:hover { 
 					background: #4CAF50; 
 					color: white;
-					transform: translateY(-2px);
-					box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+					transform: translateY(-1px);
+					box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
 				}
 				
 				.pagination .current { 
@@ -471,84 +498,152 @@ func main() {
 				
 				.no-data {
 					text-align: center;
-					padding: 20px;
+					padding: 15px;
 					color: #666;
 					font-style: italic;
 					background: #f8f9fa;
-					border-radius: 5px;
+					border-radius: 4px;
 					border: 1px dashed #ccc;
+					font-size: 0.8em;
 				}
 				
 				.id-cell {
 					font-weight: bold;
 					color: #4CAF50;
 					text-align: center;
+					font-size: 0.8em;
 				}
 				
 				.date-cell {
-					font-size: 0.9em;
+					font-size: 0.75em;
 					color: #666;
 					white-space: nowrap;
 				}
 				
-				@media (max-width: 1200px) {
+				/* Планшеты */
+				@media (min-width: 768px) {
+					.header {
+						padding: 20px;
+					}
+					
+					.header h2 {
+						font-size: 2em;
+						margin-bottom: 15px;
+					}
+					
+					.search-container {
+						flex-direction: row;
+						gap: 10px;
+						max-width: 500px;
+					}
+					
+					.search-input {
+						flex: 1;
+					}
+					
+					.search-button, .clear-button {
+						width: auto;
+					}
+					
+					.content {
+						padding: 20px;
+						margin-top: 120px;
+					}
+					
+					.stats {
+						font-size: 1.1em;
+						padding: 15px;
+					}
+					
+					th, td {
+						padding: 12px;
+						font-size: 0.9em;
+					}
+					
+					.image-cell img {
+						max-width: 200px;
+						max-height: 150px;
+					}
+					
 					.text-cell pre {
 						max-width: 250px;
 						font-size: 0.8em;
 					}
 					
-					.image-cell img {
-						max-width: 250px;
+					.structured-table {
+						max-width: 400px;
+						font-size: 10px;
+					}
+					
+					.structured-table th {
+						font-size: 9px;
+						padding: 6px 8px;
+					}
+					
+					.structured-table td {
+						font-size: 9px;
+						padding: 4px 6px;
 					}
 				}
 				
-				@media (max-width: 768px) {
-					.content {
-						padding: 15px;
-						margin-top: 140px;
-					}
-					
-					.header {
-						padding: 15px;
-					}
-					
+				/* Десктопы */
+				@media (min-width: 1024px) {
 					.header h2 {
-						font-size: 1.8em;
-						margin-bottom: 10px;
+						font-size: 2.5em;
 					}
 					
-					.search-container {
-						flex-direction: column;
-						gap: 8px;
-					}
-					
-					.search-input {
-						width: 100%;
-						font-size: 14px;
-						padding: 10px 14px;
-					}
-					
-					.search-button, .clear-button {
-						width: 100%;
-						font-size: 14px;
-						padding: 10px 16px;
-					}
-					
-					table {
-						font-size: 0.9em;
+					.content {
+						padding: 30px;
 					}
 					
 					th, td {
-						padding: 8px;
-					}
-					
-					.text-cell pre {
-						max-width: 200px;
-						font-size: 0.75em;
+						padding: 15px;
+						font-size: 1em;
 					}
 					
 					.image-cell img {
-						max-width: 200px;
+						max-width: 300px;
+						max-height: 200px;
+					}
+					
+					.text-cell pre {
+						max-width: 300px;
+						font-size: 0.85em;
+					}
+					
+					.structured-table {
+						max-width: 500px;
+						font-size: 11px;
+					}
+					
+					.structured-table th {
+						font-size: 10px;
+						padding: 8px;
+					}
+					
+					.structured-table td {
+						font-size: 10px;
+						padding: 6px 8px;
+					}
+					
+					table {
+						min-width: auto;
+					}
+				}
+				
+				/* Большие экраны */
+				@media (min-width: 1200px) {
+					.container {
+						max-width: 1400px;
+						margin: 0 auto;
+					}
+					
+					.text-cell pre {
+						max-width: 350px;
+					}
+					
+					.image-cell img {
+						max-width: 350px;
 					}
 				}
 			</style>
@@ -578,6 +673,7 @@ func main() {
 					📋 Показано {{len .Results}} записей из {{.TotalCount}}
 				</div>
 
+				<div class="mobile-table">
 				<table>
 				<tr>
 					<th>ID</th>
@@ -643,6 +739,7 @@ func main() {
 				</tr>
 				{{end}}
 				</table>
+				</div>
 
 				<div class="pagination">
 					{{if .HasPrev}}
