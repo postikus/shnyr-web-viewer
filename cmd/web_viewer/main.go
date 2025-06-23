@@ -406,11 +406,11 @@ func main() {
 					background: #f0f0f0;
 				}
 				.screenshot-cell {
-					width: 120px;
+					width: 40px;
 				}
 				.screenshot-thumb {
-					width: 100px;
-					height: 60px;
+					width: 33px;
+					height: 20px;
 					object-fit: cover;
 					border-radius: 8px;
 					cursor: pointer;
@@ -715,7 +715,7 @@ func main() {
 					}
 					
 					.content {
-						margin-top: 200px;
+						margin-top: 250px;
 						padding: 15px;
 						overflow-x: auto;
 					}
@@ -731,12 +731,12 @@ func main() {
 					}
 					
 					.screenshot-cell {
-						width: 80px;
+						width: 40px;
 					}
 					
 					.screenshot-thumb {
-						width: 60px;
-						height: 40px;
+						width: 33px;
+						height: 20px;
 					}
 					
 					.structured-data {
@@ -786,7 +786,7 @@ func main() {
 					}
 					
 					.content {
-						margin-top: 180px;
+						margin-top: 230px;
 						padding: 10px;
 					}
 					
