@@ -94,6 +94,14 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return len(files), nil
 	}
 
+	// Функция для проверки активности кнопки
+	var checkButtonActive = func(buttonX, buttonY int, buttonName string) bool {
+		img := captureScreenShot()
+		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, buttonY)
+		fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
+		return buttonRPx == 214
+	}
+
 	// Функция для выполнения полного цикла скриншотов и OCR
 	var performScreenshotAndOCR = func(buttonPressed bool) error {
 		counter := 0
@@ -109,6 +117,16 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
 		fmt.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
+
+		// Проверяем наличие кнопок 1, 2 или 3
+		button1Active := checkButtonActive(c.Click.Button1.X, c.Click.Button1.Y, "listButton1")
+		button2Active := checkButtonActive(c.Click.Button2.X, c.Click.Button2.Y, "listButton2")
+		button3Active := checkButtonActive(c.Click.Button3.X, c.Click.Button3.Y, "listButton3")
+
+		topCrop := 22 // По умолчанию обрезаем 22 пикселя сверху
+		if buttonPressed || button1Active || button2Active || button3Active {
+			topCrop = 45
+		}
 
 		if scrollRPx > 26 {
 			scrollRPx = 26
@@ -132,112 +150,134 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 			finalImage, _ := imageInternal.CombineImages(screenshots, smallScreenshots)
 			combinedImg := imageInternal.CropOpacityPixel(finalImage)
-
-			// Кадрирование комбинированного изображения
 			bounds := combinedImg.Bounds()
-			topCrop := 22 // По умолчанию обрезаем 22 пикселя сверху
-			if buttonPressed {
-				topCrop = 45 // Если кнопка была нажата, обрезаем 45 пикселей сверху
-			}
 			cropRect := image.Rect(40, topCrop, bounds.Dx()-17, bounds.Dy())
 			croppedCombinedImg := combinedImg.(interface {
 				SubImage(r image.Rectangle) image.Image
 			}).SubImage(cropRect)
-
-			fileCount, _ := countFilesInDir("./imgs")
-			fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
-			err := imageInternal.SaveCombinedImage(croppedCombinedImg, fileName)
-			if err != nil {
-				return err
-			}
-
-			scripts.ScrollUp(port, c, counter+5)
-
-			result, err := ocr.RunOCR(fileName)
-			if err != nil {
-				fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
-				return err
-			}
-
-			fmt.Println(result)
-
-			// Парсим результат OCR
-			debugInfo, jsonData, rawText := ocr.ParseOCRResult(result)
-
-			// Конвертируем изображение в байты
-			imageBytes, err := imageToBytes(croppedCombinedImg)
-			if err != nil {
-				log.Printf("Ошибка конвертации изображения: %v", err)
-				return err
-			}
-
-			// Сохраняем результат в базу данных
-			_, err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, rawText, imageBytes, c)
-			if err != nil {
-				log.Printf("Ошибка сохранения в БД: %v", err)
-				return err
-			}
-
-			return nil
+			img = croppedCombinedImg
+		} else {
+			// Если скролла нет, просто кадрируем первый скриншот
+			fmt.Println("⚠️ scrollRPx <= 26, делаем обычный скриншот с кадрированием")
+			bounds := img.Bounds()
+			cropRect := image.Rect(40, topCrop, bounds.Dx()-17, bounds.Dy())
+			croppedCombinedImg := img.(interface {
+				SubImage(r image.Rectangle) image.Image
+			}).SubImage(cropRect)
+			img = croppedCombinedImg
 		}
-		return fmt.Errorf("scrollRPx не превышает 26")
-	}
 
-	// Функция для проверки и клика по кнопке
-	var checkAndClickButton = func(buttonX, buttonY int, buttonName string) bool {
-		img := captureScreenShot()
-		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, buttonY)
-		fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
-		return buttonRPx > 26
+		fileCount, _ := countFilesInDir("./imgs")
+		fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
+		err := imageInternal.SaveCombinedImage(img, fileName)
+		if err != nil {
+			return err
+		}
+
+		scripts.ScrollUp(port, c, counter+5)
+
+		result, err := ocr.RunOCR(fileName)
+		if err != nil {
+			fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
+			return err
+		}
+
+		fmt.Println(result)
+
+		// Парсим результат OCR
+		debugInfo, jsonData, rawText := ocr.ParseOCRResult(result)
+
+		// Конвертируем изображение в байты
+		imageBytes, err := imageToBytes(img)
+		if err != nil {
+			log.Printf("Ошибка конвертации изображения: %v", err)
+			return err
+		}
+
+		// Сохраняем результат в базу данных
+		_, err = saveOCRResultToDB(db, fileName, result, debugInfo, jsonData, rawText, imageBytes, c)
+		if err != nil {
+			log.Printf("Ошибка сохранения в БД: %v", err)
+			return err
+		}
+
+		return nil
 	}
 
 	var captureScreenShotsWithScroll = func() bool {
+		fmt.Println("=== Начало выполнения captureScreenShotsWithScroll ===")
+
+		// Сначала проверяем, есть ли скролл вообще
+		img := captureScreenShot()
+		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
+		fmt.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
+
+		// Если нет скролла, возвращаем false
+		if scrollRPx <= 26 {
+			fmt.Println("❌ Скролл не найден (scrollRPx <= 26), выходим из функции")
+			return false
+		}
+		fmt.Println("✅ Скролл найден, продолжаем выполнение")
+
+		// Проверяем наличие всех кнопок
+		fmt.Println("🔍 Проверяем наличие кнопок...")
+		button2Active := checkButtonActive(c.Click.Button2.X, c.Click.Button2.Y, "listButton2")
+		button3Active := checkButtonActive(c.Click.Button3.X, c.Click.Button3.Y, "listButton3")
+
+		fmt.Printf("📋 Статус кнопок: Button2=%v, Button3=%v\n",
+			button2Active, button3Active)
+
 		// Выполняем основной цикл скриншотов и OCR (без нажатия кнопок)
-		if checkAndClickButton(c.Click.Button2.X, c.Click.Button2.Y, "listButton2") {
+		fmt.Println("🔄 Выполняем основной цикл скриншотов и OCR...")
+		if button2Active {
 			err := performScreenshotAndOCR(true)
 			if err != nil {
+				fmt.Printf("❌ Ошибка в основном цикле: %v\n", err)
 				return false
 			}
 		} else {
 			err := performScreenshotAndOCR(false)
 			if err != nil {
+				fmt.Printf("❌ Ошибка в основном цикле: %v\n", err)
 				return false
 			}
 		}
 
-		// Проверяем и кликаем по кнопке 2
-		if checkAndClickButton(c.Click.Button2.X, c.Click.Button2.Y, "listButton2") {
+		fmt.Println("✅ Основной цикл выполнен успешно")
+
+		// Идем по кнопкам последовательно
+		if button2Active {
+			fmt.Println("🔘 Кликаем по Button2...")
 			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
-
-			// Повторяем цикл для кнопки 2 (с нажатием кнопки)
-			err = performScreenshotAndOCR(true)
+			err := performScreenshotAndOCR(true)
 			if err != nil {
+				fmt.Printf("❌ Ошибка при обработке Button2: %v\n", err)
 				return false
 			}
+			fmt.Println("✅ Button2 обработан успешно")
+		} else {
+			fmt.Println("⏭️ Button2 неактивен, пропускаем")
 		}
 
-		// Проверяем и кликаем по кнопке 3
-		if checkAndClickButton(c.Click.Button3.X, c.Click.Button3.Y, "listButton3") {
+		if button3Active {
+			fmt.Println("🔘 Кликаем по Button3...")
 			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-
-			// Повторяем цикл для кнопки 3 (с нажатием кнопки)
-			err = performScreenshotAndOCR(true)
+			err := performScreenshotAndOCR(true)
 			if err != nil {
+				fmt.Printf("❌ Ошибка при обработке Button3: %v\n", err)
 				return false
 			}
+			fmt.Println("✅ Button3 обработан успешно")
+		} else {
+			fmt.Println("⏭️ Button3 неактивен, пропускаем")
 		}
 
-		// Проверяем и кликаем по кнопке 4
-		if checkAndClickButton(c.Click.Button4.X, c.Click.Button4.Y, "listButton4") {
-			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+		// Кликаем Back только после последней существующей кнопки
+		fmt.Println("🔙 Кликаем по кнопке Back...")
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		fmt.Println("✅ Back клик выполнен")
 
-			// Повторяем цикл для кнопки 4 (с нажатием кнопки)
-			err = performScreenshotAndOCR(true)
-			if err != nil {
-				return false
-			}
-		}
-
+		fmt.Println("=== Завершение captureScreenShotsWithScroll ===")
 		return true
 	}
 
@@ -246,74 +286,79 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		combinedSaved := captureScreenShotsWithScroll()
 		if !combinedSaved {
 			saveScreenShot()
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 		}
 
-		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 	}
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
 		// прокликиваем первую страницу
-		// points := imageInternal.FindItemPositionsByTextColor(img, 80)
-		// if len(points) > 2 {
-		// 	for _, point := range points {
-		// 		clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
-		// 	}
-		// }
+		points := imageInternal.FindItemPositionsByTextColor(img, 80)
+		fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
+		if len(points) > 2 {
+			fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
+			for i, point := range points {
+				fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
+				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
+			}
+		} else {
+			fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
+		}
 
-		clickItem(config.Coordinates{X: marginX + c.Click.Item3.X, Y: marginY + c.Click.Item3.Y})
+		// clickItem(config.Coordinates{X: marginX + c.Click.Item5.X, Y: marginY + c.Click.Item5.Y})
 	}
 
-	// берем в фокус и делаем скрин
-	scripts.ClickCoordinates(port, c, c.Click.Item1)
-	img = captureScreenShot()
-	clickEveryItemAnsScreenShot(img)
-
-	// // берем в фокус
+	// // берем в фокус и делаем скрин
 	// scripts.ClickCoordinates(port, c, c.Click.Item1)
+	// img = captureScreenShot()
+	// clickEveryItemAnsScreenShot(img)
 
-	// cycles := 0
-	// for cycles < 20 {
-	// 	img := captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+	// берем в фокус
+	scripts.ClickCoordinates(port, c, c.Click.Item1)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+	cycles := 0
+	for cycles < 2 {
+		img := captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button2.X, Y: marginY + c.Click.Button2.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button3.X, Y: marginY + c.Click.Button3.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button4.X, Y: marginY + c.Click.Button4.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// 	img = captureScreenShot()
-	// 	clickEveryItemAnsScreenShot(img)
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button5.X, Y: marginY + c.Click.Button5.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	img = captureScreenShot()
-	// 	SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// 	maxSixButtonClicks := 0
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+		img = captureScreenShot()
+		clickEveryItemAnsScreenShot(img)
 
-	// 	for SixButtonPx > 30 && maxSixButtonClicks < 50 {
-	// 		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
-	// 		img = captureScreenShot()
-	// 		clickEveryItemAnsScreenShot(img)
-	// 		img = captureScreenShot()
-	// 		SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
-	// 		maxSixButtonClicks += 1
-	// 	}
+		img = captureScreenShot()
+		SixButtonPx, _, _, _ := imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+		maxSixButtonClicks := 0
 
-	// 	scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-	// 	// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+		for SixButtonPx > 30 && maxSixButtonClicks < 50 {
+			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Button6.X, Y: marginY + c.Click.Button6.Y})
+			img = captureScreenShot()
+			clickEveryItemAnsScreenShot(img)
+			img = captureScreenShot()
+			SixButtonPx, _, _, _ = imageInternal.GetPixelColor(img, c.Click.Button6.X, 35)
+			maxSixButtonClicks += 1
+		}
 
-	// 	cycles += 1
-	// }
+		scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+		// scripts.ClickCoordinates(port, c, config.Coordinates{X: 35, Y: 107})
+
+		cycles += 1
+	}
 
 }
 
@@ -324,6 +369,11 @@ func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonD
 		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
 		return 0, nil
 	}
+
+	log.Printf("💾 Начинаем сохранение OCR результата в БД...")
+	log.Printf("📄 JSON данные (длина: %d): %s", len(jsonData), jsonData)
+	log.Printf("🔍 Debug info (длина: %d): %s", len(debugInfo), debugInfo[:min(100, len(debugInfo))])
+	log.Printf("📝 Raw text (длина: %d): %s", len(rawText), rawText[:min(100, len(rawText))])
 
 	// Создаем таблицу, если она не существует
 	createTableSQL := `
@@ -356,16 +406,31 @@ func saveOCRResultToDB(db *sql.DB, imagePath, ocrResult string, debugInfo, jsonD
 		return 0, fmt.Errorf("ошибка получения ID записи: %v", err)
 	}
 
+	log.Printf("✅ OCR результат сохранен с ID: %d", ocrResultID)
+
 	// Сохраняем структурированные данные
 	if jsonData != "" {
+		log.Printf("🔧 Сохраняем структурированные данные для OCR ID: %d", ocrResultID)
 		err = ocr.SaveStructuredData(db, int(ocrResultID), jsonData)
 		if err != nil {
-			log.Printf("Ошибка сохранения структурированных данных: %v", err)
+			log.Printf("❌ Ошибка сохранения структурированных данных: %v", err)
+		} else {
+			log.Printf("✅ Структурированные данные успешно сохранены")
 		}
+	} else {
+		log.Printf("⚠️ JSON данные пустые, пропускаем сохранение structured items")
 	}
 
 	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
 	return int(ocrResultID), nil
+}
+
+// min возвращает минимальное из двух чисел
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // imageToBytes конвертирует изображение в байты в формате PNG

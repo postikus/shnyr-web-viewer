@@ -90,10 +90,42 @@ func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 			rawText = ocrResult.TextRecognition.RawText
 		}
 	} else {
-		// Если маркеры не найдены, всё считаем debug информацией
-		debugInfo = ocrResult
-		jsonData = ""
-		rawText = ""
+		// Если маркеры не найдены, пытаемся найти JSON в выводе
+		// Ищем начало JSON (первая открывающая скобка)
+		jsonStartPos := strings.Index(ocrResult, "{")
+		if jsonStartPos != -1 {
+			// Ищем конец JSON (последняя закрывающая скобка)
+			jsonEndPos := strings.LastIndex(ocrResult, "}")
+			if jsonEndPos != -1 && jsonEndPos > jsonStartPos {
+				// Извлекаем debug информацию (всё до JSON)
+				debugInfo = strings.TrimSpace(ocrResult[:jsonStartPos])
+
+				// Извлекаем JSON
+				jsonData = strings.TrimSpace(ocrResult[jsonStartPos : jsonEndPos+1])
+
+				// Исправляем malformed JSON
+				jsonData = fixMalformedJSON(jsonData)
+
+				// Извлекаем raw_text из JSON
+				var ocrResult OCRJSONResult
+				if err := json.Unmarshal([]byte(jsonData), &ocrResult); err == nil {
+					rawText = ocrResult.TextRecognition.RawText
+				} else {
+					fmt.Printf("Ошибка парсинга JSON без маркеров: %v\n", err)
+					fmt.Printf("JSON данные: %s\n", jsonData)
+				}
+			} else {
+				// Если не можем найти JSON, всё считаем debug информацией
+				debugInfo = ocrResult
+				jsonData = ""
+				rawText = ""
+			}
+		} else {
+			// Если не можем найти JSON, всё считаем debug информацией
+			debugInfo = ocrResult
+			jsonData = ""
+			rawText = ""
+		}
 	}
 
 	return debugInfo, jsonData, rawText
