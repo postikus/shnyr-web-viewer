@@ -1,2 +1,51 @@
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+main.exe
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+
+# Images and data
 imgs/
+data/
+*.png
+*.jpg
+*.jpeg
+
+# Config files that might contain sensitive data
+config.yaml
+
+# Vendor (will be downloaded during build)
 vendor/
+
+# Test files
+*_test.go
+
+# Documentation
+README.md
+*.md
+
+# Output
+ocr_log.txt
+items_located.png
+cropped_window.png
+debug_screen.png
+debug_window_finder.go
+real_screen.png
+test_screen.png
