@@ -671,41 +671,131 @@ func main() {
 					background: #eee;
 					color: #000;
 				}
+				/* Мобильные устройства */
 				@media (max-width: 768px) {
+					.header {
+						position: fixed;
+						top: 0;
+						left: 0;
+						right: 0;
+						padding: 10px 0;
+						z-index: 1000;
+					}
+					
 					.header-content {
 						flex-direction: column;
+						padding: 0 15px;
+						gap: 10px;
+					}
+					
+					.title-section h1 {
+						font-size: 1.8em;
 						text-align: center;
 					}
-					.title-section h1 {
-						font-size: 2em;
+					
+					.search-container {
+						flex-direction: column;
+						width: 100%;
+						gap: 10px;
 					}
+					
 					.search-input {
 						width: 100%;
-						max-width: 300px;
+						font-size: 14px;
 					}
+					
 					.price-filter {
-						flex-direction: column;
-						gap: 5px;
+						width: 100%;
+						justify-content: space-between;
 					}
+					
 					.price-input {
-						width: 120px;
-					}
-					table {
+						width: 80px;
 						font-size: 12px;
 					}
-					th, td {
-						padding: 8px;
+					
+					.content {
+						margin-top: 200px;
+						padding: 15px;
+						overflow-x: auto;
 					}
+					
+					table {
+						min-width: 800px;
+						font-size: 12px;
+					}
+					
+					th, td {
+						padding: 8px 4px;
+						font-size: 11px;
+					}
+					
+					.screenshot-cell {
+						width: 80px;
+					}
+					
+					.screenshot-thumb {
+						width: 60px;
+						height: 40px;
+					}
+					
+					.structured-data {
+						max-width: 300px;
+						overflow-x: auto;
+					}
+					
 					.structured-table {
+						min-width: 600px;
 						font-size: 10px;
 					}
+					
 					.structured-table th,
 					.structured-table td {
 						padding: 2px 4px;
+						font-size: 9px;
 					}
+					
 					.modal-content {
 						width: 95%;
 						margin: 5% auto;
+						padding: 15px;
+						max-height: 95vh;
+					}
+					
+					.modal-section {
+						padding: 15px;
+						margin: 15px 0;
+					}
+					
+					.pagination {
+						flex-wrap: wrap;
+						gap: 5px;
+					}
+					
+					.pagination a,
+					.pagination span {
+						padding: 8px 12px;
+						font-size: 12px;
+					}
+				}
+				
+				/* Очень маленькие экраны */
+				@media (max-width: 480px) {
+					.title-section h1 {
+						font-size: 1.5em;
+					}
+					
+					.content {
+						margin-top: 180px;
+						padding: 10px;
+					}
+					
+					table {
+						min-width: 700px;
+					}
+					
+					.structured-table {
+						min-width: 500px;
 					}
 				}
 			</style>
