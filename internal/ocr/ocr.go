@@ -17,6 +17,7 @@ type StructuredItem struct {
 	Price       string `json:"price"`
 	Package     bool   `json:"package"`
 	Owner       string `json:"owner"`
+	Count       string `json:"count"`
 }
 
 // OCRJSONResult представляет структуру JSON ответа
@@ -154,6 +155,7 @@ func SaveStructuredData(db *sql.DB, ocrResultID int, jsonData string) error {
 		price VARCHAR(50) NOT NULL,
 		package BOOLEAN DEFAULT FALSE,
 		owner VARCHAR(255),
+		count VARCHAR(10),
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
 	)`
@@ -172,8 +174,8 @@ func SaveStructuredData(db *sql.DB, ocrResultID int, jsonData string) error {
 			fmt.Printf("🔧 Установлен enhancement='0' для предмета: %s\n", item.Title)
 		}
 
-		insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner) VALUES (?, ?, ?, ?, ?, ?, ?)`
-		_, err = db.Exec(insertSQL, ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner)
+		insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		_, err = db.Exec(insertSQL, ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count)
 		if err != nil {
 			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
 		}

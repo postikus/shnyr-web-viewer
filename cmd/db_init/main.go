@@ -65,6 +65,7 @@ func main() {
 		price VARCHAR(50) NOT NULL,
 		package BOOLEAN DEFAULT FALSE,
 		owner VARCHAR(255),
+		count VARCHAR(10),
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
 	)`

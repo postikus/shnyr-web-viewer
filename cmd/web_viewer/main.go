@@ -24,6 +24,7 @@ type StructuredItem struct {
 	Price       string
 	Package     bool
 	Owner       string
+	Count       string
 	CreatedAt   string
 }
 
@@ -214,12 +215,12 @@ func main() {
 			}
 
 			// Загружаем структурированные данные для этого OCR результата
-			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
+			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
 			if err == nil {
 				defer itemRows.Close()
 				for itemRows.Next() {
 					var item StructuredItem
-					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.CreatedAt); err == nil {
+					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.CreatedAt); err == nil {
 						res.Items = append(res.Items, item)
 					}
 				}
@@ -898,12 +899,12 @@ func main() {
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
+				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
 				<td>
 					{{if .Items}}
 					<div class="structured-table">
 					<table>
-					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>
+					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th><th>Count</th></tr>
 					{{range .Items}}
 					<tr class="cheapest-item-{{.Enhancement}}-{{.Price}}">
 					<td>{{.Title}}</td>
@@ -912,6 +913,7 @@ func main() {
 					<td>{{formatPrice .Price}}</td>
 					<td>{{if .Package}}✔️{{end}}</td>
 					<td>{{.Owner}}</td>
+					<td>{{.Count}}</td>
 					</tr>
 					{{end}}
 					</table>
@@ -1043,7 +1045,7 @@ func main() {
 					
 					let tableHTML = '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 1.1em;">📋 Структурированные данные:</h4>';
 					tableHTML += '<table class="modal-structured-table">';
-					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th></tr>';
+					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Package</th><th>Owner</th><th>Count</th></tr>';
 					
 					items.forEach(item => {
 						const isCheapest = cheapestItems.has(item);
@@ -1055,6 +1057,7 @@ func main() {
 						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					
@@ -1182,7 +1185,7 @@ func main() {
 					});
 					
 					let tableHTML = '<table class="structured-table">';
-					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Пакет</th><th>Владелец</th></tr></thead>';
+					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Пакет</th><th>Владелец</th><th>Количество</th></tr></thead>';
 					tableHTML += '<tbody>';
 					
 					items.forEach(item => {
@@ -1195,6 +1198,7 @@ func main() {
 						tableHTML += '<td>' + formatPrice(item.price || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '❌') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					

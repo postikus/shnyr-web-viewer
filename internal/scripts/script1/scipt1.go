@@ -60,7 +60,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return img
 	}
 
-	var SaveScreenshotFull = func() image.Image {
+	var _ = func() image.Image {
 		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
 		return img
 	}
@@ -97,7 +97,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 	// Функция для проверки активности кнопки
 	var checkButtonActive = func(buttonX, buttonY int, buttonName string) bool {
 		img := captureScreenShot()
-		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, buttonY)
+		buttonRPx, _, _, _ := imageInternal.GetPixelColor(img, buttonX, 36)
 		fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
 		return buttonRPx == 86
 	}
@@ -221,7 +221,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 		// Проверяем наличие всех кнопок
 		fmt.Println("🔍 Проверяем наличие кнопок...")
-		SaveScreenshotFull()
+		// SaveScreenshotFull()
 		button2Active := checkButtonActive(c.Click.Button2.X, c.Click.Button2.Y, "listButton2")
 		button3Active := checkButtonActive(c.Click.Button3.X, c.Click.Button3.Y, "listButton3")
 		button4Active := checkButtonActive(c.Click.Button4.X, c.Click.Button4.Y, "listButton4")
@@ -335,20 +335,20 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 	}
 
 	var clickEveryItemAnsScreenShot = func(img image.Image) {
-		// // прокликиваем первую страницу
-		// points := imageInternal.FindItemPositionsByTextColor(img, 80)
-		// fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
-		// if len(points) > 2 {
-		// 	fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
-		// 	for i, point := range points {
-		// 		fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
-		// 		clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
-		// 	}
-		// } else {
-		// 	fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
-		// }
+		// прокликиваем первую страницу
+		points := imageInternal.FindItemPositionsByTextColor(img, 80)
+		fmt.Printf("🔍 Найдено точек для клика: %d\n", len(points))
+		if len(points) > 2 {
+			fmt.Printf("✅ Найдено достаточно точек, начинаем обработку...\n")
+			for i, point := range points {
+				fmt.Printf("🖱️ Кликаем по точке %d: (%d, %d)\n", i+1, point.X, point.Y)
+				clickItem(config.Coordinates{Y: point.Y + marginY, X: marginX + point.X})
+			}
+		} else {
+			fmt.Printf("⚠️ Недостаточно точек для обработки (нужно > 2, найдено: %d)\n", len(points))
+		}
 
-		clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
+		// clickItem(config.Coordinates{X: marginX + c.Click.Item8.X, Y: marginY + c.Click.Item8.Y})
 	}
 
 	// берем в фокус и делаем скрин
