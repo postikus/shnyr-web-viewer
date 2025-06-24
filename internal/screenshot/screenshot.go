@@ -9,7 +9,7 @@ import (
 	"log"
 	"octopus/internal/config"
 	"os"
-	"path/filepath"
+	"time"
 
 	"octopus/internal/ocr"
 
@@ -19,9 +19,22 @@ import (
 // Глобальная переменная для базы данных
 var db *sql.DB
 
+// Глобальная переменная для отслеживания необходимости сохранения скриншотов
+var saveScreenshotsLocally bool
+
 // SetDatabase устанавливает глобальную переменную базы данных
 func SetDatabase(database *sql.DB) {
 	db = database
+}
+
+// SetSaveScreenshotsLocally устанавливает флаг сохранения скриншотов локально
+func SetSaveScreenshotsLocally(save bool) {
+	saveScreenshotsLocally = save
+}
+
+// ShouldSaveLocally возвращает true, если скриншоты должны сохраняться локально
+func ShouldSaveLocally() bool {
+	return saveScreenshotsLocally
 }
 
 // CaptureScreenshot захватывает скриншот в память и возвращает декодированное изображение
@@ -49,16 +62,6 @@ func CaptureFullScreen() (image.Image, error) {
 }
 
 func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Image, error) {
-	// Получаем список файлов в папке ./imgs/
-	files, err := filepath.Glob("./imgs/*")
-	if err != nil {
-		log.Println("Error reading files in ./imgs/:", err)
-		return nil, err
-	}
-
-	// Количество файлов в папке
-	screenshotCount := len(files)
-
 	// Захватываем скриншот
 	img, err := CaptureScreenshot(config.CoordinatesWithSize{X: c.X, Y: c.Y, Width: c.Width, Height: c.Height})
 	if err != nil {
@@ -75,55 +78,74 @@ func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Ima
 	}).SubImage(cropRect)
 	// --- Конец логики кадрирования ---
 
-	// Генерируем имя файла с номером, основанным на количестве файлов
-	outputFile := fmt.Sprintf("./imgs/screenshot%d.png", screenshotCount+1)
+	// Генерируем виртуальный путь к файлу для БД
+	outputFile := fmt.Sprintf("screenshot_%d.png", time.Now().Unix())
 
-	// Создаем файл для сохранения
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		log.Println("Error creating file:", err)
-		return nil, err
-	}
-	defer func(outFile *os.File) {
-		err := outFile.Close()
-		if err != nil {
-
-		}
-	}(outFile)
-
-	// Сохраняем обрезанное изображение
-	err = png.Encode(outFile, croppedImg)
-	if err != nil {
-		log.Println("Error saving image:", err)
-		return nil, err
-	} else {
-		fmt.Println("Image saved:", outputFile)
-
-		// Вызываем OCR напрямую
-		ocrResult, err := ocr.RunOCR(outputFile)
-		if err != nil {
-			log.Printf("Ошибка OCR: %v", err)
+	// Сохраняем локально только если включен флаг
+	if saveScreenshotsLocally {
+		// Создаем папку data, если её нет
+		if err := os.MkdirAll("data", 0755); err != nil {
+			log.Printf("Ошибка создания папки data: %v", err)
 		} else {
-			fmt.Printf("OCR результат:\n%s\n", ocrResult)
-
-			// Парсим результат OCR
-			debugInfo, jsonData, rawText := ocr.ParseOCRResult(ocrResult)
-
-			// Конвертируем изображение в байты
-			imageBytes, err := imageToBytes(croppedImg)
+			// Сохраняем изображение локально
+			localFilePath := fmt.Sprintf("data/%s", outputFile)
+			file, err := os.Create(localFilePath)
 			if err != nil {
-				log.Printf("Ошибка конвертации изображения: %v", err)
+				log.Printf("Ошибка создания локального файла: %v", err)
 			} else {
-				// Сохраняем результат в базу данных
-				_, err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, rawText, imageBytes, cfg)
+				defer file.Close()
+				err = png.Encode(file, croppedImg)
 				if err != nil {
-					log.Printf("Ошибка сохранения в БД: %v", err)
+					log.Printf("Ошибка сохранения локального изображения: %v", err)
+				} else {
+					log.Printf("📸 Скриншот сохранен локально: %s", localFilePath)
 				}
 			}
 		}
-
-		return croppedImg, nil
 	}
+
+	// Создаем временный файл для OCR
+	tempFile, err := os.CreateTemp("", "screenshot_*.png")
+	if err != nil {
+		log.Println("Error creating temp file:", err)
+		return nil, err
+	}
+	defer func() {
+		tempFile.Close()
+		os.Remove(tempFile.Name()) // Удаляем временный файл
+	}()
+
+	// Сохраняем изображение во временный файл
+	err = png.Encode(tempFile, croppedImg)
+	if err != nil {
+		log.Println("Error saving temp image:", err)
+		return nil, err
+	}
+
+	// Вызываем OCR с временным файлом
+	ocrResult, err := ocr.RunOCR(tempFile.Name())
+	if err != nil {
+		log.Printf("Ошибка OCR: %v", err)
+	} else {
+		fmt.Printf("OCR результат:\n%s\n", ocrResult)
+
+		// Парсим результат OCR
+		debugInfo, jsonData, rawText := ocr.ParseOCRResult(ocrResult)
+
+		// Конвертируем изображение в байты
+		imageBytes, err := imageToBytes(croppedImg)
+		if err != nil {
+			log.Printf("Ошибка конвертации изображения: %v", err)
+		} else {
+			// Сохраняем результат в базу данных
+			_, err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, rawText, imageBytes, cfg)
+			if err != nil {
+				log.Printf("Ошибка сохранения в БД: %v", err)
+			}
+		}
+	}
+
+	return croppedImg, nil
 }
 
 var SaveItemOffersWithoutButtondScreenshot = func(c *config.Config) {
@@ -132,16 +154,6 @@ var SaveItemOffersWithoutButtondScreenshot = func(c *config.Config) {
 
 // SaveScreenshotFull захватывает и сохраняет скриншот указанной области без обрезки краёв для отладки
 func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
-	// Получаем список файлов в папке ./imgs/
-	files, err := filepath.Glob("./imgs/*")
-	if err != nil {
-		log.Println("Error reading files in ./imgs/:", err)
-		return nil, err
-	}
-
-	// Количество файлов в папке
-	screenshotCount := len(files)
-
 	// Захватываем скриншот
 	img, err := CaptureScreenshot(config.CoordinatesWithSize{X: c.X, Y: c.Y, Width: c.Width, Height: c.Height})
 	if err != nil {
@@ -149,35 +161,9 @@ func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
 		return nil, err
 	}
 
-	// Генерируем имя файла с номером, основанным на количестве файлов
-	outputFile := fmt.Sprintf("./imgs/full_screenshot%d.png", screenshotCount+1)
+	fmt.Println("Full screenshot captured (not saved locally)")
 
-	// Создаем файл для сохранения
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		log.Println("Error creating file:", err)
-		return nil, err
-	}
-	defer func(outFile *os.File) {
-		err := outFile.Close()
-		if err != nil {
-
-		}
-	}(outFile)
-
-	// Сохраняем изображение без обрезки краёв
-	err = png.Encode(outFile, img)
-	if err != nil {
-		log.Println("Error saving image:", err)
-		return nil, err
-	} else {
-		fmt.Println("Full screenshot saved:", outputFile)
-
-		// TODO: Добавить прямую интеграцию OCR здесь
-		// Вместо вызова exec.Command
-
-		return img, nil
-	}
+	return img, nil
 }
 
 // saveOCRResultToDB сохраняет результат OCR в базу данных

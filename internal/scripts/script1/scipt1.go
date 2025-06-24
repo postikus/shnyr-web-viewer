@@ -56,10 +56,10 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return img
 	}
 
-	var saveScreenShot = func() image.Image {
-		img, _ := screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361}, c)
-		return img
-	}
+	// var saveScreenShot = func() image.Image {
+	// 	img, _ := screenshot.SaveScreenshot(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361}, c)
+	// 	return img
+	// }
 
 	var _ = func() image.Image {
 		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
@@ -155,13 +155,16 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 			if len(smallScreenshots) >= 2 {
 				prev := smallScreenshots[len(smallScreenshots)-2]
 				last := smallScreenshots[len(smallScreenshots)-1]
-				// Сохраняем два последних скриншота в файлы
-				f1, _ := os.Create("last_prev.png")
-				defer f1.Close()
-				png.Encode(f1, prev)
-				f2, _ := os.Create("last.png")
-				defer f2.Close()
-				png.Encode(f2, last)
+				// Сохраняем два последних скриншота в файлы только если включен флаг
+				if screenshot.ShouldSaveLocally() {
+					f1, _ := os.Create("last_prev.png")
+					defer f1.Close()
+					png.Encode(f1, prev)
+					f2, _ := os.Create("last.png")
+					defer f2.Close()
+					png.Encode(f2, last)
+					log.Println("📸 Временные файлы last_prev.png и last.png сохранены")
+				}
 				diff, err := imageInternal.LastColorStripeDistanceDiff(prev, last, 26, 20)
 				if err != nil {
 					fmt.Printf("Ошибка stripe diff: %v\n", err)
@@ -203,9 +206,33 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 
 		fileCount, _ := countFilesInDir("./imgs")
 		fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
-		err := imageInternal.SaveCombinedImage(img, fileName)
-		if err != nil {
-			return err
+
+		// Сохраняем комбинированное изображение только если включен флаг
+		if screenshot.ShouldSaveLocally() {
+			err := imageInternal.SaveCombinedImage(img, fileName)
+			if err != nil {
+				return err
+			}
+			log.Printf("📸 Комбинированное изображение сохранено: %s", fileName)
+		} else {
+			// Создаем временный файл для OCR
+			tempFile, err := os.CreateTemp("", "screenshot_combined_*.png")
+			if err != nil {
+				log.Printf("Ошибка создания временного файла: %v", err)
+				return err
+			}
+			defer func() {
+				tempFile.Close()
+				os.Remove(tempFile.Name())
+			}()
+
+			// Сохраняем во временный файл для OCR
+			err = png.Encode(tempFile, img)
+			if err != nil {
+				log.Printf("Ошибка сохранения во временный файл: %v", err)
+				return err
+			}
+			fileName = tempFile.Name()
 		}
 
 		scripts.ScrollUp(port, c, counter+5)
@@ -362,7 +389,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		scripts.ClickCoordinates(port, c, item)
 		combinedSaved := captureScreenShotsWithScroll()
 		if !combinedSaved {
-			saveScreenShot()
+			// saveScreenShot()
 			scripts.ClickCoordinates(port, c, config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
 		}
 
