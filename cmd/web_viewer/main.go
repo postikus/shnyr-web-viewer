@@ -410,6 +410,12 @@ func main() {
 				.screenshot-cell {
 					width: 40px;
 				}
+				.image-path-cell {
+					max-width: 200px;
+					word-wrap: break-word;
+					font-size: 12px;
+					font-family: monospace;
+				}
 				.screenshot-thumb {
 					width: 33px;
 					height: 20px;
@@ -899,7 +905,7 @@ func main() {
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
+				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-image-path="{{.ImagePath}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
 				<td>
 					{{if .Items}}
 					<div class="structured-table">
@@ -985,6 +991,11 @@ func main() {
 				<div class="modal-section">
 					<h3>📸 Скриншот</h3>
 					<img id="detailModalImage" class="modal-image" alt="Screenshot">
+				</div>
+				
+				<div class="modal-section">
+					<h3>📁 Путь к изображению</h3>
+					<div id="detailModalImagePath"></div>
 				</div>
 				
 				<div class="modal-section">
@@ -1097,11 +1108,12 @@ func main() {
 				const rawText = element.getAttribute('data-raw-text');
 				const id = element.getAttribute('data-id');
 				const imageData = element.getAttribute('data-image');
+				const imagePath = element.getAttribute('data-image-path');
 				const debugInfo = element.getAttribute('data-debug');
 				const hasItems = element.getAttribute('data-items') === 'true';
 				const structuredItemsJson = element.getAttribute('data-structured-items');
 				
-				console.log('openDetailModalFromData called with:', {rawText, id, imageData, debugInfo, hasItems, structuredItemsJson});
+				console.log('openDetailModalFromData called with:', {rawText, id, imageData, imagePath, debugInfo, hasItems, structuredItemsJson});
 				
 				let items = [];
 				if (hasItems && structuredItemsJson) {
@@ -1114,24 +1126,26 @@ func main() {
 					}
 				}
 				
-				openDetailModal(rawText, id, imageData, debugInfo, hasItems, ...items);
+				openDetailModal(rawText, id, imageData, imagePath, debugInfo, hasItems, ...items);
 			}
 
-			function openDetailModal(text, id, imageData, debugInfo, hasItems, ...items) {
-				console.log('openDetailModal called with:', {text, id, imageData, debugInfo, hasItems, items});
+			function openDetailModal(text, id, imageData, imagePath, debugInfo, hasItems, ...items) {
+				console.log('openDetailModal called with:', {text, id, imageData, imagePath, debugInfo, hasItems, items});
 				
 				const modalTitle = document.getElementById('detailModalTitle');
 				const modalImage = document.getElementById('detailModalImage');
 				const modalDebugInfo = document.getElementById('detailModalDebugInfo');
 				const modalStructuredData = document.getElementById('detailModalStructuredData');
 				const modalRawText = document.getElementById('detailModalRawText');
+				const modalImagePath = document.getElementById('detailModalImagePath');
 				
 				console.log('Found elements:', {
 					modalTitle: !!modalTitle,
 					modalImage: !!modalImage,
 					modalDebugInfo: !!modalDebugInfo,
 					modalStructuredData: !!modalStructuredData,
-					modalRawText: !!modalRawText
+					modalRawText: !!modalRawText,
+					modalImagePath: !!modalImagePath
 				});
 				
 				// Устанавливаем заголовок
@@ -1151,6 +1165,9 @@ func main() {
 				
 				// Устанавливаем сырой текст
 				modalRawText.textContent = text || 'Нет данных';
+				
+				// Устанавливаем путь к изображению
+				modalImagePath.textContent = imagePath || 'Нет данных';
 				
 				console.log('hasItems:', hasItems, 'items length:', items.length);
 				

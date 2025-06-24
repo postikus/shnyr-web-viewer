@@ -61,7 +61,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		return img
 	}
 
-	var saveScreenShotFull = func() image.Image {
+	var _ = func() image.Image {
 		img, _ := screenshot.SaveScreenshotFull(config.CoordinatesWithSize{X: marginX, Y: marginY, Width: 300, Height: 361})
 		return img
 	}
@@ -114,7 +114,7 @@ var Run = func(port *serial.Port, c *config.Config, db *sql.DB) {
 		var smallScreenshots []image.Image
 
 		img := captureScreenShot()
-		saveScreenShotFull()
+		// saveScreenShotFull()
 		screenshots = append(screenshots, img)
 
 		scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
