@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"flag"
 	"log"
 	"octopus/internal/arduino"
 	"octopus/internal/config"
@@ -13,23 +12,7 @@ import (
 	"github.com/tarm/serial"
 )
 
-// Глобальная переменная для отслеживания необходимости сохранения скриншотов
-var SaveScreenshotsLocally bool
-
 func main() {
-	// Парсим аргументы командной строки
-	saveScreenshots := flag.Bool("savess", false, "Save screenshots locally")
-	flag.Parse()
-
-	// Устанавливаем глобальную переменную
-	SaveScreenshotsLocally = *saveScreenshots
-
-	if SaveScreenshotsLocally {
-		log.Println("📸 Локальное сохранение скриншотов ВКЛЮЧЕНО")
-	} else {
-		log.Println("📸 Локальное сохранение скриншотов ОТКЛЮЧЕНО")
-	}
-
 	// init конфигурации
 	err, c := config.InitConfig()
 	if err != nil {
@@ -52,9 +35,6 @@ func main() {
 
 	// Устанавливаем базу данных в пакете screenshot
 	screenshot.SetDatabase(db)
-
-	// Устанавливаем флаг сохранения скриншотов локально
-	screenshot.SetSaveScreenshotsLocally(SaveScreenshotsLocally)
 
 	// Инициализация порта с использованием значений из конфигурации
 	portObj, err := arduino.InitializePort(c.Port, c.BaudRate)
