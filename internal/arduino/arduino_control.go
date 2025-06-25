@@ -1,55 +1,55 @@
-package scripts
+package arduino
 
 import (
-	"github.com/tarm/serial"
-	"octopus/internal/arduino"
 	"octopus/internal/config"
+
+	"github.com/tarm/serial"
 )
 
 var sendFastClickToArduino = func(x int, y int, port *serial.Port) {
-	arduino.SendFastClickToArduino(port)
+	SendFastClickToArduino(port)
 }
 
 var sendScrollDownToArduino = func(x int, y int, port *serial.Port) {
-	arduino.SendScrollDownToArduino(port, x)
+	SendScrollDownToArduino(port, x)
 }
 
 var sendScrollUpToArduino = func(x int, y int, port *serial.Port) {
-	arduino.SendScrollUpToArduino(port, x)
+	SendScrollUpToArduino(port, x)
 }
 
 var sendCoordinatesToArduino = func(x int, y int, port *serial.Port) {
-	arduino.SendCoordinatesToArduino(port, x, y)
+	SendCoordinatesToArduino(port, x, y)
 }
 
 // Wait for Arduino's response
 var waitForArduinoResponse = func(expectedResponse string, port *serial.Port) (string, error) {
-	return arduino.WaitForArduinoResponse(port, expectedResponse)
+	return WaitForArduinoResponse(port, expectedResponse)
 }
 
 var FastClick = func(port *serial.Port, config *config.Config) {
-	err := arduino.ProcessAndWait(sendFastClickToArduino, waitForArduinoResponse, nil, 0, 0, port, config)
+	err := ProcessAndWait(sendFastClickToArduino, waitForArduinoResponse, nil, 0, 0, port, config)
 	if err != nil {
 		return
 	}
 }
 
 var ClickCoordinates = func(port *serial.Port, config *config.Config, coordinates config.Coordinates) {
-	err := arduino.ProcessAndWait(sendCoordinatesToArduino, waitForArduinoResponse, nil, coordinates.X, coordinates.Y, port, config)
+	err := ProcessAndWait(sendCoordinatesToArduino, waitForArduinoResponse, nil, coordinates.X, coordinates.Y, port, config)
 	if err != nil {
 		return
 	}
 }
 
 var ScrollDown = func(port *serial.Port, config *config.Config, x int) {
-	err := arduino.ProcessAndWait(sendScrollDownToArduino, waitForArduinoResponse, nil, x, 0, port, config)
+	err := ProcessAndWait(sendScrollDownToArduino, waitForArduinoResponse, nil, x, 0, port, config)
 	if err != nil {
 		return
 	}
 }
 
 var ScrollUp = func(port *serial.Port, config *config.Config, x int) {
-	err := arduino.ProcessAndWait(sendScrollUpToArduino, waitForArduinoResponse, nil, x, 0, port, config)
+	err := ProcessAndWait(sendScrollUpToArduino, waitForArduinoResponse, nil, x, 0, port, config)
 	if err != nil {
 		return
 	}

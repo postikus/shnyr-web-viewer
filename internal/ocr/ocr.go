@@ -1,9 +1,10 @@
 package ocr
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"image"
+	"octopus/internal/config"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -41,8 +42,20 @@ type OCRJSONResult struct {
 	} `json:"text_recognition"`
 }
 
+// OCRManager содержит функции для работы с OCR
+type OCRManager struct {
+	config *config.Config
+}
+
+// NewOCRManager создает новый экземпляр OCRManager
+func NewOCRManager(config *config.Config) *OCRManager {
+	return &OCRManager{
+		config: config,
+	}
+}
+
 // RunOCR запускает внешний cpp_ocr.exe и возвращает распознанный текст
-func RunOCR(imagePath string) (string, error) {
+func (m *OCRManager) RunOCR(imagePath string) (string, error) {
 	ocrExecutable := `C:\Users\karpo\cpp_ocr\build\Release\cpp_ocr.exe`
 	cmd := exec.Command(ocrExecutable, imagePath)
 	output, err := cmd.CombinedOutput()
@@ -53,7 +66,7 @@ func RunOCR(imagePath string) (string, error) {
 }
 
 // fixMalformedJSON исправляет JSON с отсутствующими запятыми в массиве structured_data
-func fixMalformedJSON(jsonData string) string {
+func (m *OCRManager) fixMalformedJSON(jsonData string) string {
 	// Ищем паттерн: } { в массиве structured_data
 	// Это означает отсутствующую запятую между объектами
 	pattern := regexp.MustCompile(`(\s*}\s*)(\s*{\s*"title":)`)
@@ -66,7 +79,7 @@ func fixMalformedJSON(jsonData string) string {
 }
 
 // ParseOCRResult парсит результат OCR и извлекает debug информацию, JSON и raw_text
-func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
+func (m *OCRManager) ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 	// Ищем маркеры JSON
 	jsonStart := "=== JSON START ==="
 	jsonEnd := "=== JSON END ==="
@@ -83,7 +96,7 @@ func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 		jsonData = strings.TrimSpace(ocrResult[jsonStartPos:endIndex])
 
 		// Исправляем malformed JSON
-		jsonData = fixMalformedJSON(jsonData)
+		jsonData = m.fixMalformedJSON(jsonData)
 
 		// Извлекаем raw_text из JSON
 		var ocrResult OCRJSONResult
@@ -105,7 +118,7 @@ func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 				jsonData = strings.TrimSpace(ocrResult[jsonStartPos : jsonEndPos+1])
 
 				// Исправляем malformed JSON
-				jsonData = fixMalformedJSON(jsonData)
+				jsonData = m.fixMalformedJSON(jsonData)
 
 				// Извлекаем raw_text из JSON
 				var ocrResult OCRJSONResult
@@ -132,154 +145,17 @@ func ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawText string) {
 	return debugInfo, jsonData, rawText
 }
 
-// SaveStructuredData сохраняет структурированные данные в базу данных
-func SaveStructuredData(db *sql.DB, ocrResultID int, jsonData string) error {
-	if jsonData == "" {
-		return nil // Нет данных для сохранения
-	}
-
-	// Парсим JSON
-	var ocrResult OCRJSONResult
-	err := json.Unmarshal([]byte(jsonData), &ocrResult)
+// ProcessImage выполняет OCR обработку изображения
+func (m *OCRManager) ProcessImage(img image.Image, fileName string) (result, debugInfo, jsonData, rawText string, err error) {
+	// Выполняем OCR
+	result, err = m.RunOCR(fileName)
 	if err != nil {
-		return fmt.Errorf("ошибка парсинга JSON: %v", err)
+		fmt.Printf("Ошибка при выполнении OCR: %v\n", err)
+		return "", "", "", "", err
 	}
 
-	// Создаем таблицу, если она не существует
-	createTableSQL := `CREATE TABLE IF NOT EXISTS structured_items (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		ocr_result_id INT,
-		title VARCHAR(255) NOT NULL,
-		title_short VARCHAR(255),
-		enhancement VARCHAR(10),
-		price VARCHAR(50) NOT NULL,
-		package BOOLEAN DEFAULT FALSE,
-		owner VARCHAR(255),
-		count VARCHAR(10),
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
-	)`
+	// Парсим результат OCR
+	debugInfo, jsonData, rawText = m.ParseOCRResult(result)
 
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		return fmt.Errorf("ошибка создания таблицы structured_items: %v", err)
-	}
-
-	// Если нет данных для сохранения, выходим
-	if len(ocrResult.TextRecognition.StructuredData) == 0 {
-		fmt.Printf("Нет структурированных данных для сохранения (OCR ID: %d)\n", ocrResultID)
-		return nil
-	}
-
-	// Начинаем транзакцию для batch операций
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("ошибка начала транзакции: %v", err)
-	}
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Подготавливаем запрос для batch вставки
-	stmt, err := tx.Prepare(`INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return fmt.Errorf("ошибка подготовки запроса: %v", err)
-	}
-	defer stmt.Close()
-
-	// Выполняем batch вставку
-	for _, item := range ocrResult.TextRecognition.StructuredData {
-		// Устанавливаем "0" для пустого enhancement
-		enhancement := item.Enhancement
-		if enhancement == "" {
-			enhancement = "0"
-			fmt.Printf("🔧 Установлен enhancement='0' для предмета: %s\n", item.Title)
-		}
-
-		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count)
-		if err != nil {
-			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
-		}
-	}
-
-	// Фиксируем транзакцию
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("ошибка фиксации транзакции: %v", err)
-	}
-
-	fmt.Printf("✅ Сохранено %d структурированных элементов для OCR результата ID: %d (batch операция)\n",
-		len(ocrResult.TextRecognition.StructuredData), ocrResultID)
-	return nil
-}
-
-// SaveStructuredDataBatch сохраняет структурированные данные в базу данных используя один INSERT запрос с множественными VALUES
-func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error {
-	if jsonData == "" {
-		return nil // Нет данных для сохранения
-	}
-
-	// Парсим JSON
-	var ocrResult OCRJSONResult
-	err := json.Unmarshal([]byte(jsonData), &ocrResult)
-	if err != nil {
-		return fmt.Errorf("ошибка парсинга JSON: %v", err)
-	}
-
-	// Создаем таблицу, если она не существует
-	createTableSQL := `CREATE TABLE IF NOT EXISTS structured_items (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		ocr_result_id INT,
-		title VARCHAR(255) NOT NULL,
-		title_short VARCHAR(255),
-		enhancement VARCHAR(10),
-		price VARCHAR(50) NOT NULL,
-		package BOOLEAN DEFAULT FALSE,
-		owner VARCHAR(255),
-		count VARCHAR(10),
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
-	)`
-
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		return fmt.Errorf("ошибка создания таблицы structured_items: %v", err)
-	}
-
-	// Если нет данных для сохранения, выходим
-	if len(ocrResult.TextRecognition.StructuredData) == 0 {
-		fmt.Printf("Нет структурированных данных для сохранения (OCR ID: %d)\n", ocrResultID)
-		return nil
-	}
-
-	// Строим один INSERT запрос с множественными VALUES
-	var values []string
-	var args []interface{}
-
-	for _, item := range ocrResult.TextRecognition.StructuredData {
-		// Устанавливаем "0" для пустого enhancement
-		enhancement := item.Enhancement
-		if enhancement == "" {
-			enhancement = "0"
-			fmt.Printf("🔧 Установлен enhancement='0' для предмета: %s\n", item.Title)
-		}
-
-		values = append(values, "(?, ?, ?, ?, ?, ?, ?, ?)")
-		args = append(args, ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count)
-	}
-
-	// Формируем SQL запрос
-	insertSQL := fmt.Sprintf(`INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count) VALUES %s`, strings.Join(values, ","))
-
-	// Выполняем один batch запрос
-	_, err = db.Exec(insertSQL, args...)
-	if err != nil {
-		return fmt.Errorf("ошибка batch вставки структурированных данных: %v", err)
-	}
-
-	fmt.Printf("🚀 Сохранено %d структурированных элементов для OCR результата ID: %d (один INSERT запрос)\n",
-		len(ocrResult.TextRecognition.StructuredData), ocrResultID)
-	return nil
+	return result, debugInfo, jsonData, rawText, nil
 }

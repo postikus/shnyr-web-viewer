@@ -4,7 +4,11 @@ import (
 	"database/sql"
 	"log"
 	"octopus/internal/arduino"
+	"octopus/internal/click_manager"
 	"octopus/internal/config"
+	"octopus/internal/database"
+	imageInternal "octopus/internal/image"
+	"octopus/internal/ocr"
 	"octopus/internal/screenshot"
 	script1 "octopus/internal/scripts/script1"
 
@@ -48,6 +52,19 @@ func main() {
 		}
 	}(portObj)
 
-	// Запуск скрипта с переданным портом и базой данных
-	script1.Run(portObj, &c, db)
+	// Инициализация окна для получения отступов
+	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
+	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
+	if err != nil {
+		log.Fatalf("Ошибка инициализации окна: %v", err)
+	}
+
+	// Инициализация всех менеджеров
+	screenshotManager := screenshot.NewScreenshotManager(marginX, marginY)
+	dbManager := database.NewDatabaseManager(db)
+	ocrManager := ocr.NewOCRManager(&c)
+	clickManager := click_manager.NewClickManager(portObj, &c, marginX, marginY, screenshotManager, dbManager)
+
+	// Запуск скрипта с переданными менеджерами
+	script1.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, marginX, marginY)
 }

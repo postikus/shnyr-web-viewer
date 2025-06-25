@@ -107,7 +107,7 @@ func analyzeImage(filePath string, outputFilePath string, targetX int, minR int)
 	return distance
 }
 
-func main() {
+func stripeAnalysisMain() {
 	dist1 := analyzeImage("test_image.png", "stripe_analysis_x297_1.png", 297, 26)
 	dist2 := analyzeImage("test_image2.png", "stripe_analysis_x297_2.png", 297, 26)
 	if dist1 >= 0 && dist2 >= 0 {

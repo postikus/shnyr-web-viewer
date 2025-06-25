@@ -1,10 +1,9 @@
-package helpers
+package image
 
 import (
 	"fmt"
 	"image"
-	imageInternal "octopus/internal/image"
-	"octopus/internal/screen"
+	"octopus/internal/screenshot"
 )
 
 // WindowInitializer содержит функции для инициализации окна
@@ -19,10 +18,10 @@ func NewWindowInitializer(topOffset int) *WindowInitializer {
 	}
 }
 
-// InitializeWindow инициализирует окно и возвращает координаты
-func (w *WindowInitializer) InitializeWindow() (int, int, error) {
+// GetItemBrokerWindowMargins инициализирует окно и возвращает координаты
+func (w *WindowInitializer) GetItemBrokerWindowMargins() (int, int, error) {
 	// Делаем скриншот всего экрана
-	img, err := screen.CaptureFullScreen()
+	img, err := screenshot.CaptureFullScreen()
 	if err != nil {
 		return 0, 0, fmt.Errorf("ошибка захвата экрана: %v", err)
 	}
@@ -37,7 +36,7 @@ func (w *WindowInitializer) InitializeWindow() (int, int, error) {
 	}
 
 	// Ищем окно
-	gameWindow, err := imageInternal.FindGameWindow(croppedImg)
+	gameWindow, err := FindGameWindow(croppedImg)
 	if err != nil {
 		return 0, 0, fmt.Errorf("окно не найдено: %v", err)
 	}

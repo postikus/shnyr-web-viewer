@@ -22,7 +22,7 @@ func loadImage(path string) image.Image {
 	return img
 }
 
-func main() {
+func stripeDiffMain() {
 	img1 := loadImage("../last_prev.png")
 	img2 := loadImage("../last.png")
 

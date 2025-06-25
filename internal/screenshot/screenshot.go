@@ -1,7 +1,6 @@
 package screenshot
 
 import (
-	"bytes"
 	"database/sql"
 	"fmt"
 	"image"
@@ -10,8 +9,6 @@ import (
 	"octopus/internal/config"
 	"os"
 	"path/filepath"
-
-	"octopus/internal/ocr"
 
 	"github.com/kbinani/screenshot"
 )
@@ -41,7 +38,7 @@ func CaptureScreenshot(c config.CoordinatesWithSize) (image.Image, error) {
 // CaptureFullScreen захватывает скриншот всего экрана
 func CaptureFullScreen() (image.Image, error) {
 	// Захватываем весь экран
-	img, err := screenshot.CaptureRect(image.Rect(0, 0, 1920, 1080)) // Стандартное разрешение, можно адаптировать
+	img, err := screenshot.CaptureRect(image.Rect(0, 0, 800, 800)) // Стандартное разрешение, можно адаптировать
 	if err != nil {
 		return nil, fmt.Errorf("failed to capture full screen: %v", err)
 	}
@@ -98,33 +95,8 @@ func SaveScreenshot(c config.CoordinatesWithSize, cfg *config.Config) (image.Ima
 		return nil, err
 	} else {
 		fmt.Println("Image saved:", outputFile)
-
-		// Вызываем OCR напрямую
-		ocrResult, err := ocr.RunOCR(outputFile)
-		if err != nil {
-			log.Printf("Ошибка OCR: %v", err)
-		} else {
-			fmt.Printf("OCR результат:\n%s\n", ocrResult)
-
-			// Парсим результат OCR
-			debugInfo, jsonData, rawText := ocr.ParseOCRResult(ocrResult)
-
-			// Конвертируем изображение в байты
-			imageBytes, err := imageToBytes(croppedImg)
-			if err != nil {
-				log.Printf("Ошибка конвертации изображения: %v", err)
-			} else {
-				// Сохраняем результат в базу данных
-				_, err = saveOCRResultToDB(outputFile, ocrResult, debugInfo, jsonData, rawText, imageBytes, cfg)
-				if err != nil {
-					log.Printf("Ошибка сохранения в БД: %v", err)
-				}
-			}
-		}
-
 		return croppedImg, nil
 	}
-
 }
 
 var SaveItemOffersWithoutButtondScreenshot = func(c *config.Config) {
@@ -181,67 +153,152 @@ func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
 	}
 }
 
-// saveOCRResultToDB сохраняет результат OCR в базу данных
-func saveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData, rawText string, imageData []byte, cfg *config.Config) (int, error) {
-	if db == nil {
-		return 0, fmt.Errorf("база данных не инициализирована")
+// ScreenshotManager содержит функции для работы со скриншотами
+type ScreenshotManager struct {
+	marginX int
+	marginY int
+}
+
+// NewScreenshotManager создает новый экземпляр ScreenshotManager
+func NewScreenshotManager(marginX, marginY int) *ScreenshotManager {
+	return &ScreenshotManager{
+		marginX: marginX,
+		marginY: marginY,
 	}
+}
 
-	// Проверяем настройку сохранения в БД
-	if cfg.SaveToDB != 1 {
-		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
-		return 0, nil
-	}
+// CaptureScreenShot делает скриншот области
+func (h *ScreenshotManager) CaptureScreenShot() image.Image {
+	img, _ := CaptureScreenshot(config.CoordinatesWithSize{
+		X:      h.marginX,
+		Y:      h.marginY,
+		Width:  300,
+		Height: 361,
+	})
+	return img
+}
 
-	// Создаем таблицу, если она не существует
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS ocr_results (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		image_path VARCHAR(255) NOT NULL,
-		image_data LONGBLOB,
-		ocr_text LONGTEXT,
-		debug_info LONGTEXT,
-		json_data LONGTEXT,
-		raw_text LONGTEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
+// SaveScreenShot сохраняет скриншот в файл
+func (h *ScreenshotManager) SaveScreenShot(cfg *config.Config) image.Image {
+	img, _ := SaveScreenshot(config.CoordinatesWithSize{
+		X:      h.marginX,
+		Y:      h.marginY,
+		Width:  300,
+		Height: 361,
+	}, cfg)
+	return img
+}
 
-	_, err := db.Exec(createTableSQL)
+// SaveScreenShotFull сохраняет полный скриншот
+func (h *ScreenshotManager) SaveScreenShotFull() image.Image {
+	img, _ := SaveScreenshotFull(config.CoordinatesWithSize{
+		X:      h.marginX,
+		Y:      h.marginY,
+		Width:  300,
+		Height: 361,
+	})
+	return img
+}
+
+// CountFilesInDir подсчитывает количество файлов в директории
+func CountFilesInDir(dir string) (int, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
-		return 0, fmt.Errorf("ошибка создания таблицы: %v", err)
+		return 0, fmt.Errorf("не удалось прочитать папку: %v", err)
 	}
+	return len(files), nil
+}
 
-	// Вставляем результат OCR с изображением
-	insertSQL := `INSERT INTO ocr_results (image_path, image_data, ocr_text, debug_info, json_data, raw_text) VALUES (?, ?, ?, ?, ?, ?)`
-	result, err := db.Exec(insertSQL, imagePath, imageData, ocrResult, debugInfo, jsonData, rawText)
+// GetCoordinatesItemsInItemList возвращает массив точек для клика на изображении
+func (h *ScreenshotManager) GetCoordinatesItemsInItemList(img image.Image) ([]image.Point, error) {
+	points := h.findItemPositionsByTextColor(img, 80)
+	if len(points) > 0 {
+		return points, nil
+	} else {
+		return nil, fmt.Errorf("недостаточно точек для обработки (нужно > 0, найдено: %d)", len(points))
+	}
+}
+
+// GetItemListItemsCoordinates ищет координаты предметов на странице списка предметов
+func (h *ScreenshotManager) GetItemListItemsCoordinates() ([]image.Point, error) {
+	img := h.CaptureScreenShot()
+	coordinates, err := h.GetCoordinatesItemsInItemList(img)
 	if err != nil {
-		return 0, fmt.Errorf("ошибка вставки данных: %v", err)
+		return nil, err
 	}
 
-	// Получаем ID вставленной записи
-	ocrResultID, err := result.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("ошибка получения ID записи: %v", err)
+	return coordinates, nil
+}
+
+// findItemPositionsByTextColor находит центры цветных строк с названиями предметов
+func (h *ScreenshotManager) findItemPositionsByTextColor(img image.Image, targetX int) []image.Point {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	type bar struct{ yStart, yEnd int }
+	var allBars []bar
+
+	// --- Этап 1: Находим все отдельные строки цветного текста ---
+	const scanXStart = 70
+	const minHorizontalPixels = 20
+	const colorThreshold = 20
+
+	inBar := false
+	var barYStart int
+	for y := 30; y < height; y++ {
+		activePixelCount := 0
+		for x := scanXStart; x < width; x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+			isGreen := g8 > r8+colorThreshold && g8 > b8+colorThreshold
+			isRed := r8 > g8+colorThreshold && r8 > b8+colorThreshold
+			if isGreen || isRed {
+				activePixelCount++
+			}
+		}
+
+		isRowActive := activePixelCount >= minHorizontalPixels
+		if isRowActive && !inBar {
+			inBar = true
+			barYStart = y
+		} else if !isRowActive && inBar {
+			inBar = false
+			allBars = append(allBars, bar{yStart: barYStart, yEnd: y - 1})
+		}
+	}
+	if inBar {
+		allBars = append(allBars, bar{yStart: barYStart, yEnd: height - 1})
 	}
 
-	// Сохраняем структурированные данные
-	if jsonData != "" {
-		err = ocr.SaveStructuredDataBatch(db, int(ocrResultID), jsonData)
-		if err != nil {
-			log.Printf("Ошибка сохранения структурированных данных: %v", err)
+	// --- Этап 2: Группируем близкие строки и вычисляем центры ---
+	var centers []image.Point
+	if len(allBars) == 0 {
+		return centers
+	}
+
+	const minDistanceY = 15 // Макс. расстояние для объединения в одну группу.
+	currentGroup := allBars[0]
+
+	for i := 1; i < len(allBars); i++ {
+		nextBar := allBars[i]
+		// Если следующая строка близко, она является частью текущей группы.
+		if (nextBar.yStart - currentGroup.yEnd) < minDistanceY {
+			// Расширяем границы группы.
+			currentGroup.yEnd = nextBar.yEnd
+		} else {
+			// Следующая строка далеко - значит, предыдущая группа закончилась.
+			// Вычисляем и сохраняем ее центр.
+			centerY := currentGroup.yStart + (currentGroup.yEnd-currentGroup.yStart)/2
+			centers = append(centers, image.Point{X: targetX, Y: centerY})
+			// Начинаем новую группу.
+			currentGroup = nextBar
 		}
 	}
 
-	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
-	return int(ocrResultID), nil
-}
+	// Сохраняем центр последней группы.
+	lastCenterY := currentGroup.yStart + (currentGroup.yEnd-currentGroup.yStart)/2
+	centers = append(centers, image.Point{X: targetX, Y: lastCenterY})
 
-// imageToBytes конвертирует изображение в байты в формате PNG
-func imageToBytes(img image.Image) ([]byte, error) {
-	var buf bytes.Buffer
-	err := png.Encode(&buf, img)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка кодирования изображения: %v", err)
-	}
-	return buf.Bytes(), nil
+	return centers
 }

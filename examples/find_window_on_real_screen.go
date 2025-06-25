@@ -6,16 +6,16 @@ import (
 	"image/png"
 	"log"
 	imageInternal "octopus/internal/image"
-	"octopus/internal/screen"
+	"octopus/internal/screenshot"
 	"os"
 )
 
-func main() {
+func findWindowMain() {
 	// Количество пикселей для отрезания сверху
 	topOffset := 23
 
 	// Делаем скриншот всего экрана
-	img, err := screen.CaptureFullScreen()
+	img, err := screenshot.CaptureFullScreen()
 	if err != nil {
 		log.Fatalf("Ошибка захвата экрана: %v", err)
 	}
@@ -42,7 +42,7 @@ func main() {
 	cropWidth := 300
 	cropHeight := 364
 
-	imgFull, err := screen.CaptureFullScreen()
+	imgFull, err := screenshot.CaptureFullScreen()
 	if err != nil {
 		log.Fatalf("Ошибка захвата экрана: %v", err)
 	}

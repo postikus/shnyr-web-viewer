@@ -3,11 +3,15 @@ package image
 import (
 	"fmt"
 	"image"
-	"octopus/internal/types"
 )
 
+// GameWindow представляет найденное окно игры
+type GameWindow struct {
+	X, Y, Width, Height int
+}
+
 // FindGameWindow ищет первую нечерную точку, затем расширяет прямоугольник до границ окна (граница — черный цвет)
-func FindGameWindow(img image.Image) (*types.GameWindow, error) {
+func FindGameWindow(img image.Image) (*GameWindow, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
@@ -80,7 +84,7 @@ func FindGameWindow(img image.Image) (*types.GameWindow, error) {
 		top = y
 	}
 
-	return &types.GameWindow{
+	return &GameWindow{
 		X:      left,
 		Y:      top,
 		Width:  right - left + 1,
@@ -89,6 +93,6 @@ func FindGameWindow(img image.Image) (*types.GameWindow, error) {
 }
 
 // ConvertToAbsoluteCoordinates конвертирует относительные координаты в абсолютные
-func ConvertToAbsoluteCoordinates(window *types.GameWindow, relX, relY int) (int, int) {
+func ConvertToAbsoluteCoordinates(window *GameWindow, relX, relY int) (int, int) {
 	return window.X + relX, window.Y + relY
 }

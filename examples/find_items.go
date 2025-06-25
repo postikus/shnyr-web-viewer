@@ -12,7 +12,7 @@ import (
 	customimage "octopus/internal/image"
 )
 
-func main() {
+func findItemsMain() {
 	// 1. Загружаем изображение
 	filePath := "cropped_window.png"
 	file, err := os.Open(filePath)

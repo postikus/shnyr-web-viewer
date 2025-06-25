@@ -53,11 +53,14 @@ type Click struct {
 
 // Основная структура конфигурации
 type Config struct {
-	Port       string     `mapstructure:"port"`
-	BaudRate   int        `mapstructure:"baud_rate"`
-	Screenshot Screenshot `mapstructure:"screenshot"`
-	Click      Click      `mapstructure:"click"`
-	SaveToDB   int        `mapstructure:"save_to_db"`
+	Port                        string     `mapstructure:"port"`
+	BaudRate                    int        `mapstructure:"baud_rate"`
+	WindowTopOffset             int        `mapstructure:"window_top_offset"`
+	ListButtonBottomYCoordinate int        `mapstructure:"list_button_bottom_y_coordinate"`
+	MaxCyclesItemsList          int        `mapstructure:"max_cycles_items_list"`
+	Screenshot                  Screenshot `mapstructure:"screenshot"`
+	Click                       Click      `mapstructure:"click"`
+	SaveToDB                    int        `mapstructure:"save_to_db"`
 }
 
 var InitConfig = func() (error, Config) {
