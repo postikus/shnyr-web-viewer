@@ -39,7 +39,7 @@ vendor/
 
 # Documentation
 README.md
-*.md
+# *.md
 
 # Output
 ocr_log.txt
