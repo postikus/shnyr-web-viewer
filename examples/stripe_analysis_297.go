@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	customimage "octopus/internal/image"
+	customimage "shnyr/internal/image"
 )
 
 // Ищет самый длинный непрерывный диапазон, где red > minR, и возвращает его границы

@@ -2,7 +2,7 @@ package arduino
 
 import (
 	"image"
-	"octopus/internal/config"
+	"shnyr/internal/config"
 
 	"github.com/tarm/serial"
 )

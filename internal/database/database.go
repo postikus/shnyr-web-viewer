@@ -3,9 +3,9 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"octopus/internal/config"
-	"octopus/internal/helpers"
-	"octopus/internal/logger"
+	"shnyr/internal/config"
+	"shnyr/internal/helpers"
+	"shnyr/internal/logger"
 )
 
 // DatabaseManager содержит функции для работы с базой данных

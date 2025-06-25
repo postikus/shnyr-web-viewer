@@ -9,12 +9,12 @@ import (
 
 	"github.com/tarm/serial"
 
-	"octopus/internal/arduino"
-	"octopus/internal/config"
-	"octopus/internal/database"
-	"octopus/internal/helpers"
-	"octopus/internal/logger"
-	"octopus/internal/screenshot"
+	"shnyr/internal/arduino"
+	"shnyr/internal/config"
+	"shnyr/internal/database"
+	"shnyr/internal/helpers"
+	"shnyr/internal/logger"
+	"shnyr/internal/screenshot"
 )
 
 // ScreenshotManager интерфейс для работы со скриншотами
@@ -198,8 +198,8 @@ func (m *ClickManager) ClickItem(item image.Point) {
 // FocusL2Window фокусирует окно L2, кликая по координатам Item1
 func (m *ClickManager) FocusL2Window() {
 	finalCoordinates := image.Point{
-		X: m.marginX + m.config.Click.Item1.X,
-		Y: m.marginY + m.config.Click.Item1.Y,
+		X: 30,
+		Y: 30,
 	}
 	arduino.ClickCoordinates(m.port, m.config, finalCoordinates)
 }

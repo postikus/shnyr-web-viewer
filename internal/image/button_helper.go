@@ -3,7 +3,7 @@ package image
 import (
 	"fmt"
 	"image"
-	"octopus/internal/config"
+	"shnyr/internal/config"
 
 	"github.com/tarm/serial"
 )

@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	customimage "octopus/internal/image"
+	customimage "shnyr/internal/image"
 )
 
 func loadImage(path string) image.Image {

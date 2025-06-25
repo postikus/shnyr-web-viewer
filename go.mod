@@ -1,21 +1,20 @@
-module octopus
+module shnyr
 
-go 1.21.0
+go 1.21
 
 toolchain go1.23.5
 
 require (
-	github.com/go-sql-driver/mysql v1.9.3
-	github.com/kbinani/screenshot v0.0.0-20250118074034-a3924b7bbc8c
-	github.com/spf13/viper v1.19.0
+	github.com/go-sql-driver/mysql v1.7.1
+	github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237
+	github.com/moutend/go-hook v0.1.0
+	github.com/spf13/viper v1.17.0
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gen2brain/shm v0.1.0 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect

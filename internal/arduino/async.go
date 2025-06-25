@@ -3,7 +3,7 @@ package arduino
 import (
 	"fmt"
 	"github.com/tarm/serial"
-	"octopus/internal/config"
+	"shnyr/internal/config"
 )
 
 // ProcessAndWait выполняет отправку координат, выполнение колбэка и ожидание ответа от Arduino

@@ -5,8 +5,8 @@ import (
 	"image"
 	"image/png"
 	"log"
-	imageInternal "octopus/internal/image"
-	"octopus/internal/screenshot"
+	imageInternal "shnyr/internal/image"
+	"shnyr/internal/screenshot"
 	"os"
 )
 

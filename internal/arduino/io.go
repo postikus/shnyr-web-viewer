@@ -3,6 +3,7 @@ package arduino
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/tarm/serial"
 )
 
@@ -21,8 +22,6 @@ func SendFastClickToArduino(port *serial.Port) {
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)
-	} else {
-		fmt.Println("Coordinates sent to Arduino")
 	}
 }
 
@@ -31,8 +30,6 @@ func SendCoordinatesToArduino(port *serial.Port, x, y int) {
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)
-	} else {
-		fmt.Println("Coordinates sent to Arduino")
 	}
 }
 
@@ -42,8 +39,6 @@ func SendScrollDownToArduino(port *serial.Port, x int) {
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)
-	} else {
-		fmt.Println("Coordinates sent to Arduino")
 	}
 }
 
@@ -53,8 +48,6 @@ func SendScrollUpToArduino(port *serial.Port, x int) {
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)
-	} else {
-		fmt.Println("Coordinates sent to Arduino")
 	}
 }
 
@@ -73,8 +66,6 @@ func WaitForArduinoResponse(port *serial.Port, expectedResponse string) (string,
 			// Trim the newline character and any surrounding spaces
 			response = response[:len(response)-1]
 			response = string(bytes.TrimSpace([]byte(response))) // Trim whitespace
-
-			fmt.Printf("Received from Arduino: '%s'\n", response) // Debug output
 
 			if response == expectedResponse {
 				return response, nil

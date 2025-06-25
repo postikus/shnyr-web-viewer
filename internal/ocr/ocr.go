@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"octopus/internal/config"
+	"shnyr/internal/config"
 	"os/exec"
 	"regexp"
 	"strings"

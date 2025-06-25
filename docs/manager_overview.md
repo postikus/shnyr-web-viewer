@@ -29,17 +29,21 @@
 
 **Методы:**
 - `CaptureScreenShot() image.Image`  
-  Делает скриншот области, соответствующей окну предметов.
+  Делает скриншот области с учетом отступов.
 - `SaveScreenShot(cfg *config.Config) image.Image`  
-  Сохраняет скриншот области в файл, используя параметры из конфига.
+  Сохраняет скриншот в файл с учетом отступов.
 - `SaveScreenShotFull() image.Image`  
-  Сохраняет полный скриншот области без обрезки краёв для отладки.
-- `GetCoordinatesItemsInItemList(img image.Image) ([]image.Point, error)`  
-  Возвращает массив точек для клика по предметам на переданном изображении.
-- `GetItemListItemsCoordinates() ([]image.Point, error)`  
-  Делает скриншот и возвращает координаты всех предметов на странице.
-- `findItemPositionsByTextColor(img image.Image, targetX int) []image.Point`  
-  Находит центры цветных строк с названиями предметов (внутренний метод).
+  Сохраняет полный скриншот без обрезки краёв.
+- `GetCoordinatesItemsInItemList() ([]image.Point, error)`  
+  Получает координаты всех элементов в списке предметов.
+- `CheckAllButtonsStatus(img image.Image, config *config.Config, marginX, marginY int) ButtonStatus`  
+  Проверяет статус всех кнопок на изображении.
+- `CheckScrollExists(img image.Image) bool`  
+  Проверяет наличие скролла на изображении.
+- `GetPageStatus(img image.Image, config *config.Config, marginX, marginY int) PageStatus`  
+  Возвращает полный статус страницы (кнопки + скролл).
+- `GetScrollInfo(img image.Image) (int, int, int, error)`  
+  Возвращает информацию о скролле для отладки.
 
 **Зависимости:**
 - Конфиг (`*config.Config`)

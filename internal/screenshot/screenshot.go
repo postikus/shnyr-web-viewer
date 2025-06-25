@@ -6,11 +6,11 @@ import (
 	"image"
 	"image/png"
 	"log"
-	"octopus/internal/config"
 	"os"
 	"path/filepath"
+	"shnyr/internal/config"
 
-	"octopus/internal/helpers"
+	"shnyr/internal/helpers"
 
 	"github.com/kbinani/screenshot"
 )
@@ -317,7 +317,6 @@ type ButtonStatus struct {
 // CheckButtonActive проверяет активность кнопки
 func (h *ScreenshotManager) CheckButtonActive(buttonX, buttonY int, buttonName string, img image.Image) bool {
 	buttonRPx, _, _, _ := helpers.GetPixelColor(img, buttonX, 36)
-	fmt.Printf("%s RPx: %v\n", buttonName, buttonRPx)
 	return buttonRPx == 86
 }
 
@@ -328,9 +327,6 @@ func (h *ScreenshotManager) CheckAllButtonsStatus(img image.Image, config *confi
 	button4Active := h.CheckButtonActive(config.Click.Button4.X, config.Click.Button4.Y, "listButton4", img)
 	button5Active := h.CheckButtonActive(config.Click.Button5.X, config.Click.Button5.Y, "listButton5", img)
 	button6Active := h.CheckButtonActive(config.Click.Button6.X, config.Click.Button6.Y, "listButton6", img)
-
-	fmt.Printf("📋 Статус кнопок: Button2=%v, Button3=%v, Button4=%v, Button5=%v, Button6=%v\n",
-		button2Active, button3Active, button4Active, button5Active, button6Active)
 
 	return ButtonStatus{
 		Button2Active: button2Active,
@@ -350,4 +346,21 @@ func (h *ScreenshotManager) CheckScrollExists(img image.Image) bool {
 // GetScrollInfo возвращает информацию о скролле (для отладки)
 func (h *ScreenshotManager) GetScrollInfo(img image.Image) (int, int, int, error) {
 	return helpers.GetPixelColor(img, 290, 15)
+}
+
+// PageStatus содержит полный статус страницы
+type PageStatus struct {
+	Buttons   ButtonStatus
+	HasScroll bool
+}
+
+// GetPageStatus возвращает полный статус страницы (кнопки + скролл)
+func (h *ScreenshotManager) GetPageStatus(img image.Image, config *config.Config, marginX, marginY int) PageStatus {
+	buttons := h.CheckAllButtonsStatus(img, config, marginX, marginY)
+	hasScroll := h.CheckScrollExists(img)
+
+	return PageStatus{
+		Buttons:   buttons,
+		HasScroll: hasScroll,
+	}
 }

@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	customimage "octopus/internal/image"
+	customimage "shnyr/internal/image"
 )
 
 func findItemsMain() {

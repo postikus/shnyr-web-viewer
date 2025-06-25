@@ -3,7 +3,7 @@ package image
 import (
 	"fmt"
 	"image"
-	"octopus/internal/screenshot"
+	"shnyr/internal/screenshot"
 )
 
 // WindowInitializer содержит функции для инициализации окна
