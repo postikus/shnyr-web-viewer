@@ -593,8 +593,6 @@ func (h *ScreenshotManager) CropImageForText(img image.Image, config *config.Con
 		topCrop = config.BackButtonWithListButtonsImageCropHeight
 	}
 
-	fmt.Println("topCrop", topCrop)
-
 	// обрезаем изображение
 	cropRect := image.Rect(config.ItemsImgsWidth, topCrop, bounds.Dx()-config.ScrollWidth, bounds.Dy())
 	croppedImg := img.(interface {
