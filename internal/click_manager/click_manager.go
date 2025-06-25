@@ -13,7 +13,7 @@ import (
 
 // ScreenshotManager интерфейс для работы со скриншотами
 type ScreenshotManager interface {
-	CaptureScreenShot() image.Image
+	CaptureScreenShot() (image.Image, error)
 	SaveScreenShot(cfg *config.Config) image.Image
 	CheckScrollExists() bool
 }

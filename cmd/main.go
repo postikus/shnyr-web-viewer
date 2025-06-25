@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
+	"flag"
+	"fmt"
 	"log"
+	"os"
 	"shnyr/internal/arduino"
 	"shnyr/internal/click_manager"
 	"shnyr/internal/config"
@@ -13,17 +17,118 @@ import (
 	"shnyr/internal/ocr"
 	"shnyr/internal/screenshot"
 	cycleAllItems "shnyr/internal/scripts/cycle_all_items"
+	"strconv"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/tarm/serial"
 )
 
+func getStartButtonFromConsole() int {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Print("🔘 Введите номер стартовой кнопки (1-6): ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("❌ Ошибка чтения ввода:", err)
+			continue
+		}
+
+		// Убираем пробелы и переносы строк
+		input = strings.TrimSpace(input)
+
+		// Проверяем на пустой ввод
+		if input == "" {
+			fmt.Println("⚠️ Введите число от 1 до 6")
+			continue
+		}
+
+		// Парсим число
+		buttonNum, err := strconv.Atoi(input)
+		if err != nil {
+			fmt.Println("❌ Введите корректное число")
+			continue
+		}
+
+		// Проверяем диапазон
+		if buttonNum < 1 || buttonNum > 6 {
+			fmt.Println("❌ Номер кнопки должен быть от 1 до 6")
+			continue
+		}
+
+		return buttonNum
+	}
+}
+
+func getStartItemFromConsole() int {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Print("📍 Введите номер стартового предмета (1 для начала с первого): ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("❌ Ошибка чтения ввода:", err)
+			continue
+		}
+
+		// Убираем пробелы и переносы строк
+		input = strings.TrimSpace(input)
+
+		// Проверяем на пустой ввод
+		if input == "" {
+			fmt.Println("⚠️ Введите число от 1 и больше")
+			continue
+		}
+
+		// Парсим число
+		itemNum, err := strconv.Atoi(input)
+		if err != nil {
+			fmt.Println("❌ Введите корректное число")
+			continue
+		}
+
+		// Проверяем диапазон
+		if itemNum < 1 {
+			fmt.Println("❌ Номер предмета должен быть 1 или больше")
+			continue
+		}
+
+		return itemNum
+	}
+}
+
 func main() {
+	// Парсим аргументы командной строки
+	startButtonPtr := flag.Int("start", 1, "Начальная кнопка (1-6)")
+	startItemPtr := flag.Int("item", 1, "Начальный предмет (1 для начала с первого)")
+	flag.Parse()
+
+	var startButton, startItem int
+
+	// Если указан аргумент -start, используем его, иначе запрашиваем ввод через консоль
+	if flag.NFlag() > 0 {
+		// Проверяем валидность начальной кнопки из аргументов
+		if *startButtonPtr < 1 || *startButtonPtr > 6 {
+			log.Fatal("Начальная кнопка должна быть в диапазоне 1-6")
+		}
+		startButton = *startButtonPtr
+		startItem = *startItemPtr
+	} else {
+		// Если аргумент не указан, запрашиваем ввод через консоль
+		startButton = getStartButtonFromConsole()
+		startItem = getStartItemFromConsole()
+	}
+
 	// init конфигурации
 	err, c := config.InitConfig()
 	if err != nil {
 		return
 	}
+
+	// Устанавливаем начальную кнопку и предмет
+	c.StartButtonIndex = startButton
+	c.StartItemIndex = startItem
 
 	// Инициализация логгера
 	loggerManager, err := logger.NewLoggerManager(c.LogFilePath)
@@ -33,6 +138,8 @@ func main() {
 	defer loggerManager.Close()
 
 	loggerManager.Info("🚀 Запуск приложения ШНЫРЬ")
+	loggerManager.Info("🔘 Начальная кнопка: %d", c.StartButtonIndex)
+	loggerManager.Info("📍 Начальный предмет: %d", c.StartItemIndex)
 
 	// Подключение к базе данных MySQL
 	db, err := sql.Open("mysql", "root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true")

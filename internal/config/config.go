@@ -68,6 +68,8 @@ type Config struct {
 	BackButtonWithListButtonsImageCropHeight int        `mapstructure:"back_button_with_list_buttons_image_crop_height"`
 	ItemsImgsWidth                           int        `mapstructure:"items_imgs_width"`
 	ScrollWidth                              int        `mapstructure:"scroll_width"`
+	StartButtonIndex                         int        `mapstructure:"start_button_index"`
+	StartItemIndex                           int        `mapstructure:"start_item_index"` // Номер предмета (начиная с 1)
 }
 
 var InitConfig = func() (error, Config) {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kbinani/screenshot"
 
@@ -173,15 +174,69 @@ func NewScreenshotManager(marginX, marginY int) *ScreenshotManager {
 	}
 }
 
-// CaptureScreenShot делает скриншот области
-func (h *ScreenshotManager) CaptureScreenShot() image.Image {
-	img, _ := CaptureScreenshot(config.CoordinatesWithSize{
-		X:      h.marginX,
-		Y:      h.marginY,
-		Width:  300,
-		Height: 361,
-	})
-	return img
+// checkImageQuality проверяет качество изображения по количеству пикселей с низкими значениями каналов
+func (h *ScreenshotManager) checkImageQuality(img image.Image) bool {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	lowValuePixels := 0
+	totalPixels := width * height
+
+	// Проверяем каждый пиксель
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+
+			// Проверяем все три канала на значение <= 26
+			if r8 <= 26 && g8 <= 26 && b8 <= 26 {
+				lowValuePixels++
+			}
+		}
+	}
+
+	// Вычисляем процент пикселей с низкими значениями
+	lowValuePercentage := float64(lowValuePixels) / float64(totalPixels) * 100
+
+	// Возвращаем true если пикселей с низкими значениями меньше 95%
+	return lowValuePercentage < 99.9
+}
+
+// CaptureScreenShot делает скриншот области с проверкой качества
+func (h *ScreenshotManager) CaptureScreenShot() (image.Image, error) {
+	maxAttempts := 5
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		img, err := CaptureScreenshot(config.CoordinatesWithSize{
+			X:      h.marginX,
+			Y:      h.marginY,
+			Width:  300,
+			Height: 361,
+		})
+
+		if err != nil {
+			log.Printf("Ошибка захвата скриншота (попытка %d/%d): %v", attempt, maxAttempts, err)
+			if attempt == maxAttempts {
+				return nil, fmt.Errorf("не удалось захватить скриншот после %d попыток: %v", maxAttempts, err)
+			}
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		// Проверяем качество изображения
+		if h.checkImageQuality(img) {
+			return img, nil
+		}
+
+		log.Printf("Плохое качество скриншота (попытка %d/%d), ожидание 1 секунды...", attempt, maxAttempts)
+
+		if attempt < maxAttempts {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	return nil, fmt.Errorf("не удалось получить качественный скриншот после %d попыток", maxAttempts)
 }
 
 // SaveScreenShot сохраняет скриншот в файл
@@ -227,7 +282,11 @@ func (h *ScreenshotManager) GetCoordinatesItemsInItemList(img image.Image) ([]im
 
 // GetItemListItemsCoordinates ищет координаты предметов на странице списка предметов
 func (h *ScreenshotManager) GetItemListItemsCoordinates() ([]image.Point, error) {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return nil, err
+	}
+
 	coordinates, err := h.GetCoordinatesItemsInItemList(img)
 	if err != nil {
 		return nil, err
@@ -340,7 +399,11 @@ func (h *ScreenshotManager) CheckAllButtonsStatus(img image.Image, config *confi
 
 // CheckScrollExists проверяет наличие скролла на изображении
 func (h *ScreenshotManager) CheckScrollExists() bool {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return false
+	}
+
 	scrollRPx, _, _, _ := helpers.GetPixelColor(img, 290, 15)
 	return scrollRPx > 26
 }
@@ -353,7 +416,15 @@ type PageStatus struct {
 
 // GetPageStatus возвращает полный статус страницы (кнопки + скролл)
 func (h *ScreenshotManager) GetPageStatus(config *config.Config) PageStatus {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		// Возвращаем пустой статус если не удалось получить скриншот
+		return PageStatus{
+			Buttons:   ButtonStatus{},
+			HasScroll: false,
+		}
+	}
+
 	buttons := h.CheckAllButtonsStatus(img, config, h.marginX, h.marginY)
 	hasScroll := h.CheckScrollExists()
 	return PageStatus{
@@ -364,7 +435,11 @@ func (h *ScreenshotManager) GetPageStatus(config *config.Config) PageStatus {
 
 // checkScrollByCoordinates проверяет скролл по указанным координатам
 func (h *ScreenshotManager) checkScrollByCoordinates(x, y int) bool {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return false
+	}
+
 	r, _, _, _ := helpers.GetPixelColor(img, x, y)
 	return r > 26
 }
@@ -375,7 +450,10 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	var screenshots []image.Image
 	var smallScreenshots []image.Image
 
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить качественный скриншот")
+	}
 	screenshots = append(screenshots, img)
 
 	// создаем переменные scrollToBottom и clickToBottom
@@ -389,7 +467,10 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	// пока scrollToBottom не станет true, скроллим вниз
 	for !scrollToBottom {
 		arduino.ScrollDown(config, 1)
-		img = h.CaptureScreenShot()
+		img, err = h.CaptureScreenShot()
+		if err != nil {
+			return nil, fmt.Errorf("не удалось получить качественный скриншот во время скролла")
+		}
 		screenshots = append(screenshots, img)
 		scrollToBottom = h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYScroll)
 		scrollCounter++
@@ -405,7 +486,10 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	// пока clickToBottom не станет true, кликаем по скроллу
 	for !clickToBottom {
 		arduino.FastClick(config)
-		img = h.CaptureScreenShot()
+		img, err = h.CaptureScreenShot()
+		if err != nil {
+			return nil, fmt.Errorf("не удалось получить качественный скриншот во время кликов")
+		}
 		clickToBottom = h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYClick)
 		clickCounter++
 		smallScreenshots = append(smallScreenshots, img)
@@ -482,7 +566,10 @@ func (h *ScreenshotManager) SaveImage(img image.Image, filename string, saveAllS
 
 // SaveScreenshot делает скриншот и сохраняет его как debug_screenshot.png
 func (h *ScreenshotManager) SaveScreenshot() error {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return fmt.Errorf("не удалось получить качественный скриншот")
+	}
 
 	// Создаем файл
 	f, err := os.Create("./imgs/debug_screenshot.png")
@@ -519,7 +606,11 @@ func (h *ScreenshotManager) CropImageForText(img image.Image, config *config.Con
 
 // CheckButtonActiveByPixel проверяет активность кнопки по пикселю
 func (h *ScreenshotManager) CheckButtonActiveByPixel(x, y int) bool {
-	img := h.CaptureScreenShot()
+	img, err := h.CaptureScreenShot()
+	if err != nil {
+		return false
+	}
+
 	r, _, _, _ := helpers.GetPixelColor(img, x, y)
 	return r > 26
 }
