@@ -22,7 +22,7 @@ func clickPageButton(c *config.Config, clickManager *click_manager.ClickManager,
 }
 
 // getScreenshotOfItemPage делает скриншот страницы предмета
-func getScreenshotOfItemPage(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, buttonStatus imageInternal.ButtonStatus, scrollRPx int, marginX, marginY int, loggerManager *logger.LoggerManager) (image.Image, error) {
+func getScreenshotOfItemPage(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, buttonStatus screenshot.ButtonStatus, scrollRPx int, marginX, marginY int, loggerManager *logger.LoggerManager) (image.Image, error) {
 	// Если нет скролла, делаем обычный скриншот
 	if scrollRPx <= 26 {
 		loggerManager.Info("❌ Скролл не найден (scrollRPx <= 26), делаем обычный скриншот")
@@ -59,7 +59,7 @@ func processItemPages(c *config.Config, clickManager *click_manager.ClickManager
 
 	// Проверяем наличие всех кнопок
 	loggerManager.Info("🔍 Проверяем наличие кнопок...")
-	buttonStatus := imageInternal.CheckAllButtonsStatus(img, c, marginX, marginY)
+	buttonStatus := screenshotManager.CheckAllButtonsStatus(img, c, marginX, marginY)
 
 	// Обрабатываем страницу предмета
 	itemPageImg, err := getScreenshotOfItemPage(c, clickManager, screenshotManager, buttonStatus, scrollRPx, marginX, marginY, loggerManager)
@@ -117,18 +117,25 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 		for _, coordinate := range itemCoordinates {
 			loggerManager.Info("📍 Обрабатываем элемент в координатах: %v", coordinate)
 
-			// делаем скриншот страницы
-			img := screenshotManager.CaptureScreenShot()
-
 			// кликаем по предмету
 			clickManager.ClickCoordinates(coordinate, marginX, marginY)
 
+			// сохраняем окно покупки в переменную
+			img := screenshotManager.CaptureScreenShot()
+
 			// определим есть ли кнопки на странице
-			buttonStatus := imageInternal.CheckAllButtonsStatus(img, c, marginX, marginY)
+			buttonStatus := screenshotManager.CheckAllButtonsStatus(img, c, marginX, marginY)
 			if buttonStatus.Button2Active {
 				loggerManager.Info("🔘 Кнопка 2 активна")
 			} else {
 				loggerManager.Info("⏭️ Кнопка 2 неактивна")
+			}
+
+			// определяем есть ли скролл на странице
+			if screenshotManager.CheckScrollExists(img) {
+				loggerManager.Info("✅ Скролл найден")
+			} else {
+				loggerManager.Info("❌ Скролл не найден (scrollRPx <= 26)")
 			}
 
 			// processItemPages(c, clickManager, screenshotManager, dbManager, ocrManager, coordinate, marginX, marginY, loggerManager)

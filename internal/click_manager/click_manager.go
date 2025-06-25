@@ -12,7 +12,7 @@ import (
 	"octopus/internal/arduino"
 	"octopus/internal/config"
 	"octopus/internal/database"
-	imageInternal "octopus/internal/image"
+	"octopus/internal/helpers"
 	"octopus/internal/logger"
 	"octopus/internal/screenshot"
 )
@@ -21,6 +21,7 @@ import (
 type ScreenshotManager interface {
 	CaptureScreenShot() image.Image
 	SaveScreenShot(cfg *config.Config) image.Image
+	CheckScrollExists(img image.Image) bool
 }
 
 // ClickManager управляет кликами и скроллом
@@ -30,7 +31,6 @@ type ClickManager struct {
 	marginX          int
 	marginY          int
 	screenshotHelper ScreenshotManager
-	imageHelper      *imageInternal.ImageHelper
 	dbManager        *database.DatabaseManager
 	logger           *logger.LoggerManager
 }
@@ -43,7 +43,6 @@ func NewClickManager(port *serial.Port, config *config.Config, marginX, marginY 
 		marginX:          marginX,
 		marginY:          marginY,
 		screenshotHelper: screenshotHelper,
-		imageHelper:      imageInternal.NewImageHelper(port, config, marginX, marginY),
 		dbManager:        dbManager,
 		logger:           loggerManager,
 	}
@@ -51,9 +50,7 @@ func NewClickManager(port *serial.Port, config *config.Config, marginX, marginY 
 
 // CheckAndScreenScroll проверяет и выполняет скролл экрана
 func (m *ClickManager) CheckAndScreenScroll(counter int, x int, img image.Image) (int, int) {
-	scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
-	m.logger.Debug("scrollRPx: %v %v %v", scrollRPx, scrollGPx, scrollBPx)
-	if scrollRPx > 26 {
+	if m.screenshotHelper.(*screenshot.ScreenshotManager).CheckScrollExists(img) {
 		arduino.ScrollUp(m.port, m.config, counter+5)
 		return counter + 1, x
 	}
@@ -62,9 +59,7 @@ func (m *ClickManager) CheckAndScreenScroll(counter int, x int, img image.Image)
 
 // CheckAndClickScreenScroll проверяет и кликает по скроллу
 func (m *ClickManager) CheckAndClickScreenScroll(counter int, img image.Image) (int, int) {
-	scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
-	m.logger.Debug("scrollRPx: %v %v %v", scrollRPx, scrollGPx, scrollBPx)
-	if scrollRPx > 26 {
+	if m.screenshotHelper.(*screenshot.ScreenshotManager).CheckScrollExists(img) {
 		scrollCoords := image.Point{X: 290, Y: 15}
 		arduino.ClickCoordinates(m.port, m.config, image.Point{X: m.marginX + scrollCoords.X, Y: m.marginY + scrollCoords.Y})
 		return counter + 1, 290
@@ -120,11 +115,11 @@ func (m *ClickManager) PerformScreenshotWithScroll(buttonPressed bool) (image.Im
 
 	// Захватываем первый скриншот
 	img := m.screenshotHelper.CaptureScreenShot()
-	scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
+	scrollRPx, scrollGPx, scrollBPx, _ := helpers.GetPixelColor(img, 290, 15)
 	m.logger.Debug("scrollRPx: %v %v %v", scrollRPx, scrollGPx, scrollBPx)
 
 	// Если нет скролла, возвращаем первый скриншот
-	if scrollRPx <= 26 {
+	if !m.screenshotHelper.(*screenshot.ScreenshotManager).CheckScrollExists(img) {
 		m.logger.Info("❌ Скролл не найден (scrollRPx <= 26), возвращаем первый скриншот")
 		fileCount, _ := screenshot.CountFilesInDir("./imgs")
 		fileName := fmt.Sprintf("%s/screenshot_%d.png", "./imgs", fileCount)
@@ -183,7 +178,7 @@ func (m *ClickManager) PerformScreenshotWithScroll(buttonPressed bool) (image.Im
 
 	// Сохраняем объединенное изображение
 	fileName := fmt.Sprintf("%s/screenshot_combined_%d.png", "./imgs", fileCount)
-	err = imageInternal.SaveCombinedImage(combinedImg, fileName)
+	err = helpers.SaveCombinedImage(combinedImg, fileName)
 	if err != nil {
 		return nil, "", err
 	}
