@@ -8,22 +8,22 @@ import (
 
 // CombineImages объединяет изображения
 func CombineImages(imgs []image.Image, smallImgs []image.Image, extraImg image.Image, extraOffset int) (*image.RGBA, error) {
-	offsetDif := 30
 	offset := 0
 	width := imgs[0].Bounds().Dx()
 	height := imgs[0].Bounds().Dy()
 
 	combinedImg := image.NewRGBA(image.Rect(0, 0, width, 1000))
-	draw.Draw(combinedImg, imgs[0].Bounds(), imgs[0], image.Point{}, draw.Over)
+	draw.Draw(combinedImg, image.Rect(0, 0, width, height), imgs[0], image.Point{}, draw.Over)
 
-	for _, img := range imgs[1:] {
-		offset += offsetDif
-		draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
+	if len(imgs) > 1 {
+		for _, img := range imgs[1:] {
+			offset += 30
+			draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
+		}
 	}
 
-	offsetDif = 10
 	for _, img := range smallImgs {
-		offset += offsetDif
+		offset += 10
 		draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
 	}
 

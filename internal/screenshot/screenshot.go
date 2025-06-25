@@ -152,10 +152,6 @@ func SaveScreenshotFull(c config.CoordinatesWithSize) (image.Image, error) {
 		return nil, err
 	} else {
 		fmt.Println("Full screenshot saved:", outputFile)
-
-		// TODO: Добавить прямую интеграцию OCR здесь
-		// Вместо вызова exec.Command
-
 		return img, nil
 	}
 }
@@ -455,9 +451,10 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 		return nil, fmt.Errorf("не удалось получить качественный скриншот")
 	}
 	screenshots = append(screenshots, img)
+	log.Printf("📸 Начальный скриншот захвачен")
 
 	// создаем переменные scrollToBottom и clickToBottom
-	scrollToBottom := false
+	scrollToBottom := h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYScroll)
 	clickToBottom := false
 
 	// создаем переменные scrollCounter и clickCounter для скролла вверх и ограничений на количество кликов и скролла вниз
@@ -467,7 +464,7 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	// пока scrollToBottom не станет true, скроллим вниз
 	for !scrollToBottom {
 		arduino.ScrollDown(config, 1)
-		img, err = h.CaptureScreenShot()
+		img, err := h.CaptureScreenShot()
 		if err != nil {
 			return nil, fmt.Errorf("не удалось получить качественный скриншот во время скролла")
 		}
@@ -486,7 +483,7 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	// пока clickToBottom не станет true, кликаем по скроллу
 	for !clickToBottom {
 		arduino.FastClick(config)
-		img, err = h.CaptureScreenShot()
+		img, err := h.CaptureScreenShot()
 		if err != nil {
 			return nil, fmt.Errorf("не удалось получить качественный скриншот во время кликов")
 		}
@@ -499,10 +496,12 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 	}
 
 	// делаем в цикле скроллы наверх как сумма clickCounter и scrollCounter
-	arduino.ScrollUp(config, clickCounter+scrollCounter+5)
+	totalScrollsUp := clickCounter + scrollCounter + 5
+	arduino.ScrollUp(config, totalScrollsUp)
 	arduino.ScrollUp(config, 1)
 
 	var finalImage image.Image
+
 	if len(smallScreenshots) >= 2 {
 		prev := smallScreenshots[len(smallScreenshots)-2]
 		last := smallScreenshots[len(smallScreenshots)-1]
@@ -514,12 +513,12 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 		}
 	} else if len(smallScreenshots) == 1 {
 		prev := screenshots[len(screenshots)-1]
-		last := smallScreenshots[len(smallScreenshots)-1]
-		_, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
+		last := smallScreenshots[0]
+		diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
 		if err != nil {
 			return nil, err
 		} else {
-			finalImage, _ = imageutils.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], nil, 0)
+			finalImage, _ = imageutils.CombineImages(screenshots, nil, smallScreenshots[0], diff)
 		}
 	} else {
 		finalImage, _ = imageutils.CombineImages(screenshots, nil, nil, 0)
@@ -594,6 +593,8 @@ func (h *ScreenshotManager) CropImageForText(img image.Image, config *config.Con
 	if Button2Active {
 		topCrop = config.BackButtonWithListButtonsImageCropHeight
 	}
+
+	fmt.Println("topCrop", topCrop)
 
 	// обрезаем изображение
 	cropRect := image.Rect(config.ItemsImgsWidth, topCrop, bounds.Dx()-config.ScrollWidth, bounds.Dy())

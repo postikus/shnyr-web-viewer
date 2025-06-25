@@ -52,6 +52,8 @@ var processItemPage = func(c *config.Config,
 	}
 
 	buttonExist := pageStatus.Buttons.Button1Active || pageStatus.Buttons.Button2Active || pageStatus.Buttons.Button3Active || pageStatus.Buttons.Button4Active
+	// принт buttonExist
+	fmt.Println("buttonExist", buttonExist)
 	// обрезаем изображение с помощью ScreenshotManager
 	croppedFinalImg := screenshotManager.CropImageForText(finalImg, c, buttonExist)
 
