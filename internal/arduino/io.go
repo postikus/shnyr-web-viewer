@@ -35,7 +35,6 @@ func SendCoordinatesToArduino(port *serial.Port, x, y int) {
 
 func SendScrollDownToArduino(port *serial.Port, x int) {
 	message := fmt.Sprintf("scroll_down:%d\n", x)
-	fmt.Println(message)
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)
@@ -44,7 +43,6 @@ func SendScrollDownToArduino(port *serial.Port, x int) {
 
 func SendScrollUpToArduino(port *serial.Port, x int) {
 	message := fmt.Sprintf("scroll_up:%d\n", x)
-	fmt.Println(message)
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)

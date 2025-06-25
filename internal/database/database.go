@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"shnyr/internal/config"
-	"shnyr/internal/helpers"
 	"shnyr/internal/logger"
 )
 
@@ -29,12 +28,6 @@ func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugIn
 		h.logger.Info("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
 		return 0, nil
 	}
-
-	h.logger.Info("💾 Начинаем сохранение OCR результата в БД...")
-	h.logger.Debug("📄 JSON данные (длина: %d): %s", len(jsonData), jsonData)
-	h.logger.Debug("🔍 Debug info (длина: %d): %s", len(debugInfo), debugInfo[:helpers.Min(100, len(debugInfo))])
-	h.logger.Debug("📝 Raw text (длина: %d): %s", len(rawText), rawText[:helpers.Min(100, len(rawText))])
-
 	// Создаем таблицу, если она не существует
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS ocr_results (

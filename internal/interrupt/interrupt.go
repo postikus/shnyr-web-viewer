@@ -77,9 +77,3 @@ func (im *InterruptManager) monitorHotkeys() {
 		}
 	}
 }
-
-// LogInstructions выводит инструкции по использованию горячих клавиш
-func (im *InterruptManager) LogInstructions() {
-	im.loggerManager.Info("⏸️ Программа готова к работе. Нажмите Shift+Enter для запуска script1, Q для прерывания")
-	im.loggerManager.Info("🔥 Горячие клавиши: Shift+Enter для запуска, Q для прерывания script1")
-}

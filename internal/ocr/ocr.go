@@ -3,10 +3,9 @@ package ocr
 import (
 	"encoding/json"
 	"fmt"
-	"image"
-	"shnyr/internal/config"
 	"os/exec"
 	"regexp"
+	"shnyr/internal/config"
 	"strings"
 )
 
@@ -146,7 +145,7 @@ func (m *OCRManager) ParseOCRResult(ocrResult string) (debugInfo, jsonData, rawT
 }
 
 // ProcessImage выполняет OCR обработку изображения
-func (m *OCRManager) ProcessImage(img image.Image, fileName string) (result, debugInfo, jsonData, rawText string, err error) {
+func (m *OCRManager) ProcessImage(fileName string) (result, debugInfo, jsonData, rawText string, err error) {
 	// Выполняем OCR
 	result, err = m.RunOCR(fileName)
 	if err != nil {

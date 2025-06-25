@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/spf13/viper"
+	"github.com/tarm/serial"
 )
 
 // Структура для координат с размером
@@ -49,15 +50,24 @@ type Click struct {
 
 // Основная структура конфигурации
 type Config struct {
-	Port                        string     `mapstructure:"port"`
-	BaudRate                    int        `mapstructure:"baud_rate"`
-	WindowTopOffset             int        `mapstructure:"window_top_offset"`
-	ListButtonBottomYCoordinate int        `mapstructure:"list_button_bottom_y_coordinate"`
-	MaxCyclesItemsList          int        `mapstructure:"max_cycles_items_list"`
-	LogFilePath                 string     `mapstructure:"log_file_path"`
-	Screenshot                  Screenshot `mapstructure:"screenshot"`
-	Click                       Click      `mapstructure:"click"`
-	SaveToDB                    int        `mapstructure:"save_to_db"`
+	Port                                     string `mapstructure:"port"`
+	PortObj                                  *serial.Port
+	BaudRate                                 int        `mapstructure:"baud_rate"`
+	WindowTopOffset                          int        `mapstructure:"window_top_offset"`
+	ListButtonBottomYCoordinate              int        `mapstructure:"list_button_bottom_y_coordinate"`
+	MaxCyclesItemsList                       int        `mapstructure:"max_cycles_items_list"`
+	LogFilePath                              string     `mapstructure:"log_file_path"`
+	Screenshot                               Screenshot `mapstructure:"screenshot"`
+	Click                                    Click      `mapstructure:"click"`
+	SaveToDB                                 int        `mapstructure:"save_to_db"`
+	SaveAllScreenshots                       int        `mapstructure:"save_all_screenshots"`
+	ScrollBottomCheckPixelX                  int        `mapstructure:"scroll_bottom_check_pixel_x"`
+	ScrollBottomCheckPixelYScroll            int        `mapstructure:"scroll_bottom_check_pixel_y_scroll"`
+	ScrollBottomCheckPixelYClick             int        `mapstructure:"scroll_bottom_check_pixel_y_click"`
+	BackButtonImageCropHeight                int        `mapstructure:"back_button_image_crop_height"`
+	BackButtonWithListButtonsImageCropHeight int        `mapstructure:"back_button_with_list_buttons_image_crop_height"`
+	ItemsImgsWidth                           int        `mapstructure:"items_imgs_width"`
+	ScrollWidth                              int        `mapstructure:"scroll_width"`
 }
 
 var InitConfig = func() (error, Config) {

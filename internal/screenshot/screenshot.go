@@ -8,11 +8,15 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"shnyr/internal/config"
-
-	"shnyr/internal/helpers"
+	"strings"
 
 	"github.com/kbinani/screenshot"
+
+	"shnyr/internal/arduino"
+	"shnyr/internal/config"
+	"shnyr/internal/helpers"
+	"shnyr/internal/imageutils"
+	"shnyr/internal/logger"
 )
 
 // Глобальная переменная для базы данных
@@ -307,11 +311,10 @@ func (h *ScreenshotManager) findItemPositionsByTextColor(img image.Image, target
 
 // ButtonStatus содержит статус всех кнопок
 type ButtonStatus struct {
+	Button1Active bool
 	Button2Active bool
 	Button3Active bool
 	Button4Active bool
-	Button5Active bool
-	Button6Active bool
 }
 
 // CheckButtonActive проверяет активность кнопки
@@ -322,30 +325,24 @@ func (h *ScreenshotManager) CheckButtonActive(buttonX, buttonY int, buttonName s
 
 // CheckAllButtonsStatus проверяет статус всех кнопок на изображении
 func (h *ScreenshotManager) CheckAllButtonsStatus(img image.Image, config *config.Config, marginX, marginY int) ButtonStatus {
-	button2Active := h.CheckButtonActive(config.Click.Button2.X, config.Click.Button2.Y, "listButton2", img)
-	button3Active := h.CheckButtonActive(config.Click.Button3.X, config.Click.Button3.Y, "listButton3", img)
-	button4Active := h.CheckButtonActive(config.Click.Button4.X, config.Click.Button4.Y, "listButton4", img)
-	button5Active := h.CheckButtonActive(config.Click.Button5.X, config.Click.Button5.Y, "listButton5", img)
-	button6Active := h.CheckButtonActive(config.Click.Button6.X, config.Click.Button6.Y, "listButton6", img)
+	button1Active := h.CheckButtonActive(config.Click.Button1.X, config.ListButtonBottomYCoordinate, "listButton1", img)
+	button2Active := h.CheckButtonActive(config.Click.Button2.X, config.ListButtonBottomYCoordinate, "listButton2", img)
+	button3Active := h.CheckButtonActive(config.Click.Button3.X, config.ListButtonBottomYCoordinate, "listButton3", img)
+	button4Active := h.CheckButtonActive(config.Click.Button4.X, config.ListButtonBottomYCoordinate, "listButton4", img)
 
 	return ButtonStatus{
+		Button1Active: button1Active,
 		Button2Active: button2Active,
 		Button3Active: button3Active,
 		Button4Active: button4Active,
-		Button5Active: button5Active,
-		Button6Active: button6Active,
 	}
 }
 
 // CheckScrollExists проверяет наличие скролла на изображении
-func (h *ScreenshotManager) CheckScrollExists(img image.Image) bool {
+func (h *ScreenshotManager) CheckScrollExists() bool {
+	img := h.CaptureScreenShot()
 	scrollRPx, _, _, _ := helpers.GetPixelColor(img, 290, 15)
 	return scrollRPx > 26
-}
-
-// GetScrollInfo возвращает информацию о скролле (для отладки)
-func (h *ScreenshotManager) GetScrollInfo(img image.Image) (int, int, int, error) {
-	return helpers.GetPixelColor(img, 290, 15)
 }
 
 // PageStatus содержит полный статус страницы
@@ -355,12 +352,174 @@ type PageStatus struct {
 }
 
 // GetPageStatus возвращает полный статус страницы (кнопки + скролл)
-func (h *ScreenshotManager) GetPageStatus(img image.Image, config *config.Config, marginX, marginY int) PageStatus {
-	buttons := h.CheckAllButtonsStatus(img, config, marginX, marginY)
-	hasScroll := h.CheckScrollExists(img)
-
+func (h *ScreenshotManager) GetPageStatus(config *config.Config) PageStatus {
+	img := h.CaptureScreenShot()
+	buttons := h.CheckAllButtonsStatus(img, config, h.marginX, h.marginY)
+	hasScroll := h.CheckScrollExists()
 	return PageStatus{
 		Buttons:   buttons,
 		HasScroll: hasScroll,
 	}
+}
+
+// checkScrollByCoordinates проверяет скролл по указанным координатам
+func (h *ScreenshotManager) checkScrollByCoordinates(x, y int) bool {
+	img := h.CaptureScreenShot()
+	r, _, _, _ := helpers.GetPixelColor(img, x, y)
+	return r > 26
+}
+
+// PerformScreenshotWithScroll выполняет скриншот со скроллом
+func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, config *config.Config) (image.Image, error) {
+	// Списки для хранения всех скриншотов
+	var screenshots []image.Image
+	var smallScreenshots []image.Image
+
+	img := h.CaptureScreenShot()
+	screenshots = append(screenshots, img)
+
+	// создаем переменные scrollToBottom и clickToBottom
+	scrollToBottom := false
+	clickToBottom := false
+
+	// создаем переменные scrollCounter и clickCounter для скролла вверх и ограничений на количество кликов и скролла вниз
+	scrollCounter := 0
+	clickCounter := 0
+
+	// пока scrollToBottom не станет true, скроллим вниз
+	for !scrollToBottom {
+		arduino.ScrollDown(config, 1)
+		img = h.CaptureScreenShot()
+		screenshots = append(screenshots, img)
+		scrollToBottom = h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYScroll)
+		scrollCounter++
+		if scrollCounter > 40 {
+			scrollToBottom = true
+		}
+	}
+
+	// кликаем по скроллу чтобы перенести мышку на скролл
+	arduino.ClickCoordinates(config, image.Point{X: h.marginX + config.Click.Scroll.X, Y: h.marginY + config.Click.Scroll.Y})
+	clickCounter++
+
+	// пока clickToBottom не станет true, кликаем по скроллу
+	for !clickToBottom {
+		arduino.FastClick(config)
+		img = h.CaptureScreenShot()
+		clickToBottom = h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYClick)
+		clickCounter++
+		smallScreenshots = append(smallScreenshots, img)
+		if clickCounter > 10 {
+			clickToBottom = true
+		}
+	}
+
+	// делаем в цикле скроллы наверх как сумма clickCounter и scrollCounter
+	arduino.ScrollUp(config, clickCounter+scrollCounter+5)
+	arduino.ScrollUp(config, 1)
+
+	var finalImage image.Image
+	if len(smallScreenshots) >= 2 {
+		prev := smallScreenshots[len(smallScreenshots)-2]
+		last := smallScreenshots[len(smallScreenshots)-1]
+		diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
+		if err != nil {
+			return nil, err
+		} else {
+			finalImage, _ = imageutils.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], smallScreenshots[len(smallScreenshots)-1], diff)
+		}
+	} else if len(smallScreenshots) == 1 {
+		prev := screenshots[len(screenshots)-1]
+		last := smallScreenshots[len(smallScreenshots)-1]
+		_, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
+		if err != nil {
+			return nil, err
+		} else {
+			finalImage, _ = imageutils.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], nil, 0)
+		}
+	} else {
+		finalImage, _ = imageutils.CombineImages(screenshots, nil, nil, 0)
+	}
+
+	combinedImg := imageutils.CropOpacityPixel(finalImage)
+	return combinedImg, nil
+}
+
+// SaveImage сохраняет изображение в папку imgs и возвращает название и путь к файлу
+func (h *ScreenshotManager) SaveImage(img image.Image, filename string, saveAllScreenshots int, loggerManager *logger.LoggerManager) (string, error) {
+	var finalFilename string
+
+	if saveAllScreenshots == 1 {
+		// Генерируем уникальное имя файла
+		files, err := filepath.Glob("./imgs/*")
+		if err != nil {
+			return "", fmt.Errorf("ошибка чтения папки imgs: %v", err)
+		}
+		screenshotCount := len(files)
+		finalFilename = fmt.Sprintf("%s_%d.png", strings.TrimSuffix(filename, ".png"), screenshotCount+1)
+	} else {
+		// Всегда перезаписываем файл
+		finalFilename = filename
+	}
+
+	// Создаем файл
+	f, err := os.Create("./imgs/" + finalFilename)
+	if err != nil {
+		return "", fmt.Errorf("ошибка создания файла: %v", err)
+	}
+	defer f.Close()
+
+	// Сохраняем изображение в PNG формате
+	err = png.Encode(f, img)
+	if err != nil {
+		return "", fmt.Errorf("ошибка сохранения изображения: %v", err)
+	}
+
+	// Возвращаем полный путь к файлу
+	fullPath := "./imgs/" + finalFilename
+	return fullPath, nil
+}
+
+// SaveScreenshot делает скриншот и сохраняет его как debug_screenshot.png
+func (h *ScreenshotManager) SaveScreenshot() error {
+	img := h.CaptureScreenShot()
+
+	// Создаем файл
+	f, err := os.Create("./imgs/debug_screenshot.png")
+	if err != nil {
+		return fmt.Errorf("ошибка создания файла: %v", err)
+	}
+	defer f.Close()
+
+	// Сохраняем изображение в PNG формате
+	err = png.Encode(f, img)
+	if err != nil {
+		return fmt.Errorf("ошибка сохранения изображения: %v", err)
+	}
+
+	return nil
+}
+
+// CropImageForText обрезает изображение для кнопки "назад" с учетом статуса кнопок
+func (h *ScreenshotManager) CropImageForText(img image.Image, config *config.Config, Button2Active bool) image.Image {
+	bounds := img.Bounds()
+	topCrop := config.BackButtonImageCropHeight // Используем значение из конфигурации
+	if Button2Active {
+		topCrop = config.BackButtonWithListButtonsImageCropHeight
+	}
+
+	// обрезаем изображение
+	cropRect := image.Rect(config.ItemsImgsWidth, topCrop, bounds.Dx()-config.ScrollWidth, bounds.Dy())
+	croppedImg := img.(interface {
+		SubImage(r image.Rectangle) image.Image
+	}).SubImage(cropRect)
+
+	return croppedImg
+}
+
+// CheckButtonActiveByPixel проверяет активность кнопки по пикселю
+func (h *ScreenshotManager) CheckButtonActiveByPixel(x, y int) bool {
+	img := h.CaptureScreenShot()
+	r, _, _, _ := helpers.GetPixelColor(img, x, y)
+	return r > 26
 }

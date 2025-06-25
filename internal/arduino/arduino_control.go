@@ -28,29 +28,29 @@ var waitForArduinoResponse = func(expectedResponse string, port *serial.Port) (s
 	return WaitForArduinoResponse(port, expectedResponse)
 }
 
-var FastClick = func(port *serial.Port, config *config.Config) {
-	err := ProcessAndWait(sendFastClickToArduino, waitForArduinoResponse, nil, 0, 0, port, config)
+var FastClick = func(config *config.Config) {
+	err := ProcessAndWait(sendFastClickToArduino, waitForArduinoResponse, nil, 0, 0, config)
 	if err != nil {
 		return
 	}
 }
 
-var ClickCoordinates = func(port *serial.Port, config *config.Config, coordinates image.Point) {
-	err := ProcessAndWait(sendCoordinatesToArduino, waitForArduinoResponse, nil, coordinates.X, coordinates.Y, port, config)
+var ClickCoordinates = func(config *config.Config, coordinates image.Point) {
+	err := ProcessAndWait(sendCoordinatesToArduino, waitForArduinoResponse, nil, coordinates.X, coordinates.Y, config)
 	if err != nil {
 		return
 	}
 }
 
-var ScrollDown = func(port *serial.Port, config *config.Config, x int) {
-	err := ProcessAndWait(sendScrollDownToArduino, waitForArduinoResponse, nil, x, 0, port, config)
+var ScrollDown = func(config *config.Config, x int) {
+	err := ProcessAndWait(sendScrollDownToArduino, waitForArduinoResponse, nil, x, 0, config)
 	if err != nil {
 		return
 	}
 }
 
-var ScrollUp = func(port *serial.Port, config *config.Config, x int) {
-	err := ProcessAndWait(sendScrollUpToArduino, waitForArduinoResponse, nil, x, 0, port, config)
+var ScrollUp = func(config *config.Config, x int) {
+	err := ProcessAndWait(sendScrollUpToArduino, waitForArduinoResponse, nil, x, 0, config)
 	if err != nil {
 		return
 	}

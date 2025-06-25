@@ -66,6 +66,9 @@ func main() {
 		}
 	}(portObj)
 
+	// Устанавливаем объект порта в конфиг
+	c.PortObj = portObj
+
 	// Инициализация окна для получения отступов
 	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
 	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
@@ -82,7 +85,7 @@ func main() {
 
 	// Инициализация менеджера прерываний
 	interruptManager := interrupt.NewInterruptManager(loggerManager)
-	loggerManager.Info("⏸️ Программа готова к работе. Нажмите Shift+Enter для запуска cycle_all_items, Q для прерывания")
+	loggerManager.Info("⏸️ Программа готова к работе")
 	loggerManager.Info("🔥 Горячие клавиши: Shift+Enter для запуска, Q для прерывания cycle_all_items")
 
 	// запускаем мониторинг горячих клавиш
@@ -98,7 +101,7 @@ func main() {
 
 		// Запускаем cycle_all_items в отдельной горутине
 		go func() {
-			cycleAllItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, marginX, marginY, loggerManager, interruptManager)
+			cycleAllItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
 			scriptDoneChan <- true
 		}()
 
