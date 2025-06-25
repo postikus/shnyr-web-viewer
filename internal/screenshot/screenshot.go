@@ -451,7 +451,6 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 		return nil, fmt.Errorf("не удалось получить качественный скриншот")
 	}
 	screenshots = append(screenshots, img)
-	log.Printf("📸 Начальный скриншот захвачен")
 
 	// создаем переменные scrollToBottom и clickToBottom
 	scrollToBottom := h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYScroll)

@@ -39,6 +39,12 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 		return fmt.Errorf("ошибка создания таблицы structured_items: %v", err)
 	}
 
+	// Если нет данных для сохранения, выходим
+	if len(ocrResult.TextRecognition.StructuredData) == 0 {
+		fmt.Printf("ℹ️ Нет структурированных данных для сохранения (OCR ID: %d)\n", ocrResultID)
+		return nil
+	}
+
 	// Начинаем транзакцию для batch обработки
 	tx, err := db.Begin()
 	if err != nil {
@@ -59,18 +65,19 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 	defer stmt.Close()
 
 	// Сохраняем каждый элемент в batch
+	processedCount := 0
 	for _, item := range ocrResult.TextRecognition.StructuredData {
 		// Устанавливаем "0" для пустого enhancement
 		enhancement := item.Enhancement
 		if enhancement == "" {
 			enhancement = "0"
-			fmt.Printf("🔧 Установлен enhancement='0' для предмета: %s\n", item.Title)
 		}
 
 		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count)
 		if err != nil {
 			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
 		}
+		processedCount++
 	}
 
 	// Подтверждаем транзакцию
@@ -79,7 +86,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 		return fmt.Errorf("ошибка подтверждения транзакции: %v", err)
 	}
 
-	fmt.Printf("Сохранено %d структурированных элементов для OCR результата ID: %d\n",
-		len(ocrResult.TextRecognition.StructuredData), ocrResultID)
+	fmt.Printf("✅ Сохранено %d/%d структурированных элементов для OCR результата ID: %d\n",
+		processedCount, len(ocrResult.TextRecognition.StructuredData), ocrResultID)
 	return nil
 }

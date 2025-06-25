@@ -391,4 +391,9 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 		// возвращается в список
 		clickManager.ClickCoordinates(image.Point{X: c.Click.Button1.X, Y: c.Click.Button1.Y})
 	}
+
+	// Ожидаем завершения всех асинхронных операций сохранения
+	loggerManager.Info("🔄 Ожидаем завершения асинхронных операций сохранения...")
+	dbManager.WaitForAsyncOperations()
+	loggerManager.Info("✅ Все операции сохранения завершены")
 }
