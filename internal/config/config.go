@@ -2,17 +2,13 @@ package config
 
 import (
 	"fmt"
+	"image"
 	"log"
 
 	"github.com/spf13/viper"
 )
 
-// Структура для координат элементов
-type Coordinates struct {
-	X int `mapstructure:"x"`
-	Y int `mapstructure:"y"`
-}
-
+// Структура для координат с размером
 type CoordinatesWithSize struct {
 	X      int `mapstructure:"x"`
 	Y      int `mapstructure:"y"`
@@ -32,23 +28,23 @@ type Screenshot struct {
 
 // Структура для кликов
 type Click struct {
-	Back    Coordinates `mapstructure:"back"`
-	Button1 Coordinates `mapstructure:"button1"`
-	Button2 Coordinates `mapstructure:"button2"`
-	Button3 Coordinates `mapstructure:"button3"`
-	Button4 Coordinates `mapstructure:"button4"`
-	Button5 Coordinates `mapstructure:"button5"`
-	Button6 Coordinates `mapstructure:"button6"`
-	Item1   Coordinates `mapstructure:"item1"`
-	Item2   Coordinates `mapstructure:"item2"`
-	Item3   Coordinates `mapstructure:"item3"`
-	Item4   Coordinates `mapstructure:"item4"`
-	Item5   Coordinates `mapstructure:"item5"`
-	Item6   Coordinates `mapstructure:"item6"`
-	Item7   Coordinates `mapstructure:"item7"`
-	Item8   Coordinates `mapstructure:"item8"`
-	Item9   Coordinates `mapstructure:"item9"`
-	Scroll  Coordinates `mapstructure:"scroll"`
+	Back    image.Point `mapstructure:"back"`
+	Button1 image.Point `mapstructure:"button1"`
+	Button2 image.Point `mapstructure:"button2"`
+	Button3 image.Point `mapstructure:"button3"`
+	Button4 image.Point `mapstructure:"button4"`
+	Button5 image.Point `mapstructure:"button5"`
+	Button6 image.Point `mapstructure:"button6"`
+	Item1   image.Point `mapstructure:"item1"`
+	Item2   image.Point `mapstructure:"item2"`
+	Item3   image.Point `mapstructure:"item3"`
+	Item4   image.Point `mapstructure:"item4"`
+	Item5   image.Point `mapstructure:"item5"`
+	Item6   image.Point `mapstructure:"item6"`
+	Item7   image.Point `mapstructure:"item7"`
+	Item8   image.Point `mapstructure:"item8"`
+	Item9   image.Point `mapstructure:"item9"`
+	Scroll  image.Point `mapstructure:"scroll"`
 }
 
 // Основная структура конфигурации

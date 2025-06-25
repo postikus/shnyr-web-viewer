@@ -65,7 +65,8 @@ func (m *ClickManager) CheckAndClickScreenScroll(counter int, img image.Image) (
 	scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
 	m.logger.Debug("scrollRPx: %v %v %v", scrollRPx, scrollGPx, scrollBPx)
 	if scrollRPx > 26 {
-		arduino.ClickCoordinates(m.port, m.config, config.Coordinates{X: m.marginX + 290, Y: m.marginY + 15})
+		scrollCoords := image.Point{X: 290, Y: 15}
+		arduino.ClickCoordinates(m.port, m.config, image.Point{X: m.marginX + scrollCoords.X, Y: m.marginY + scrollCoords.Y})
 		return counter + 1, 290
 	}
 	return counter, 290
@@ -195,16 +196,24 @@ func (m *ClickManager) PerformScreenshotWithScroll(buttonPressed bool) (image.Im
 }
 
 // ClickItem кликает по элементу и обрабатывает результат
-func (m *ClickManager) ClickItem(item config.Coordinates) {
+func (m *ClickManager) ClickItem(item image.Point) {
 
 }
 
 // FocusL2Window фокусирует окно L2, кликая по координатам Item1
 func (m *ClickManager) FocusL2Window() {
-	arduino.ClickCoordinates(m.port, m.config, m.config.Click.Item1)
+	finalCoordinates := image.Point{
+		X: m.marginX + m.config.Click.Item1.X,
+		Y: m.marginY + m.config.Click.Item1.Y,
+	}
+	arduino.ClickCoordinates(m.port, m.config, finalCoordinates)
 }
 
-// ClickCoordinates выполняет клик по указанным координатам
-func (m *ClickManager) ClickCoordinates(coordinates config.Coordinates) {
-	arduino.ClickCoordinates(m.port, m.config, coordinates)
+// ClickCoordinates выполняет клик по указанным координатам с учетом отступов
+func (m *ClickManager) ClickCoordinates(coordinate image.Point, marginX, marginY int) {
+	finalCoordinates := image.Point{
+		X: marginX + coordinate.X,
+		Y: marginY + coordinate.Y,
+	}
+	arduino.ClickCoordinates(m.port, m.config, finalCoordinates)
 }

@@ -89,21 +89,21 @@
 
 **Методы:**
 - `CheckAndScreenScroll(counter int, x int, img image.Image) (int, int)`  
-  Проверяет и выполняет скролл экрана, если это необходимо.
+  Проверяет и выполняет скролл экрана.
 - `CheckAndClickScreenScroll(counter int, img image.Image) (int, int)`  
-  Проверяет и кликает по скроллу, если это необходимо.
+  Проверяет и кликает по скроллу.
 - `saveImage(img image.Image, fileName string) error`  
   Сохраняет изображение в файл (внутренний метод).
 - `combineImagesVertically(img1, img2 image.Image) (image.Image, error)`  
   Объединяет два изображения вертикально (внутренний метод).
 - `PerformScreenshotWithScroll(buttonPressed bool) (image.Image, string, error)`  
-  Делает скриншот с прокруткой, объединяет изображения, сохраняет результат.
-- `ClickItem(item config.Coordinates)`  
-  Кликает по элементу (заготовка для расширения).
+  Выполняет скриншот со скроллом.
+- `ClickItem(item image.Point)`  
+  Кликает по элементу и обрабатывает результат.
+- `ClickCoordinates(coordinate image.Point, marginX, marginY int)`  
+  Выполняет клик по указанным координатам с учетом отступов.
 - `FocusL2Window()`  
   Фокусирует окно L2, кликая по координатам Item1.
-- `ClickCoordinates(coordinates config.Coordinates)`  
-  Выполняет клик по указанным координатам.
 
 **Зависимости:**
 - Arduino (через serial port)

@@ -12,10 +12,10 @@ import (
 )
 
 // clickPageButton кликает по кнопке
-func clickPageButton(c *config.Config, clickManager *click_manager.ClickManager, dbManager *database.DatabaseManager, buttonName string, buttonCoords config.Coordinates, isActive bool, marginX, marginY int, loggerManager *logger.LoggerManager) {
+func clickPageButton(c *config.Config, clickManager *click_manager.ClickManager, dbManager *database.DatabaseManager, buttonName string, buttonCoords image.Point, isActive bool, marginX, marginY int, loggerManager *logger.LoggerManager) {
 	if isActive {
 		loggerManager.Info("🔘 Кликаем по %s...", buttonName)
-		clickManager.ClickCoordinates(config.Coordinates{X: marginX + buttonCoords.X, Y: marginY + buttonCoords.Y})
+		clickManager.ClickCoordinates(buttonCoords, marginX, marginY)
 	} else {
 		loggerManager.Info("⏭️ %s неактивен, пропускаем", buttonName)
 	}
@@ -87,7 +87,7 @@ func processItemPages(c *config.Config, clickManager *click_manager.ClickManager
 
 	// Кликаем Back только после последней существующей кнопки
 	loggerManager.Info("🔙 Кликаем по кнопке Back...")
-	clickManager.ClickCoordinates(config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
+	clickManager.ClickCoordinates(image.Point{X: c.Click.Back.X, Y: c.Click.Back.Y}, marginX, marginY)
 	loggerManager.Info("✅ Back клик выполнен")
 }
 
@@ -116,7 +116,22 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 		// Обрабатываем каждый найденный предмет
 		for _, coordinate := range itemCoordinates {
 			loggerManager.Info("📍 Обрабатываем элемент в координатах: %v", coordinate)
-			processItemPages(c, clickManager, screenshotManager, dbManager, ocrManager, coordinate, marginX, marginY, loggerManager)
+
+			// делаем скриншот страницы
+			img := screenshotManager.CaptureScreenShot()
+
+			// кликаем по предмету
+			clickManager.ClickCoordinates(coordinate, marginX, marginY)
+
+			// определим есть ли кнопки на странице
+			buttonStatus := imageInternal.CheckAllButtonsStatus(img, c, marginX, marginY)
+			if buttonStatus.Button2Active {
+				loggerManager.Info("🔘 Кнопка 2 активна")
+			} else {
+				loggerManager.Info("⏭️ Кнопка 2 неактивна")
+			}
+
+			// processItemPages(c, clickManager, screenshotManager, dbManager, ocrManager, coordinate, marginX, marginY, loggerManager)
 		}
 
 		loggerManager.Info("✅ Обработали все элементы на странице %d из %d", cycles+1, c.MaxCyclesItemsList)

@@ -1,6 +1,7 @@
 package arduino
 
 import (
+	"image"
 	"octopus/internal/config"
 
 	"github.com/tarm/serial"
@@ -34,7 +35,7 @@ var FastClick = func(port *serial.Port, config *config.Config) {
 	}
 }
 
-var ClickCoordinates = func(port *serial.Port, config *config.Config, coordinates config.Coordinates) {
+var ClickCoordinates = func(port *serial.Port, config *config.Config, coordinates image.Point) {
 	err := ProcessAndWait(sendCoordinatesToArduino, waitForArduinoResponse, nil, coordinates.X, coordinates.Y, port, config)
 	if err != nil {
 		return
