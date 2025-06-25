@@ -1,4 +1,4 @@
-package scpript1
+package cycle_all_items
 
 import (
 	"image"
@@ -97,7 +97,7 @@ func processItemPages(c *config.Config, clickManager *click_manager.ClickManager
 	loggerManager.Info("✅ Back клик выполнен")
 }
 
-var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
+var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, marginX, marginY int, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
 	// Инициализация окна для получения отступов
 	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
 	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
@@ -124,7 +124,7 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 			// Проверяем сигнал прерывания в начале обработки каждого предмета
 			select {
 			case <-interruptManager.GetScriptInterruptChan():
-				loggerManager.Info("⏹️ Прерывание script1 по запросу пользователя")
+				loggerManager.Info("⏹️ Прерывание cycle_all_items по запросу пользователя")
 				return
 			default:
 			}
