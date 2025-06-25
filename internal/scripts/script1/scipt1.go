@@ -1,48 +1,47 @@
 package scpript1
 
 import (
-	"fmt"
 	"image"
-	"log"
 	"octopus/internal/click_manager"
 	"octopus/internal/config"
 	"octopus/internal/database"
 	imageInternal "octopus/internal/image"
+	"octopus/internal/logger"
 	"octopus/internal/ocr"
 	"octopus/internal/screenshot"
 )
 
 // clickPageButton кликает по кнопке
-func clickPageButton(c *config.Config, clickManager *click_manager.ClickManager, dbManager *database.DatabaseManager, buttonName string, buttonCoords config.Coordinates, isActive bool, marginX, marginY int) {
+func clickPageButton(c *config.Config, clickManager *click_manager.ClickManager, dbManager *database.DatabaseManager, buttonName string, buttonCoords config.Coordinates, isActive bool, marginX, marginY int, loggerManager *logger.LoggerManager) {
 	if isActive {
-		log.Printf("🔘 Кликаем по %s...", buttonName)
+		loggerManager.Info("🔘 Кликаем по %s...", buttonName)
 		clickManager.ClickCoordinates(config.Coordinates{X: marginX + buttonCoords.X, Y: marginY + buttonCoords.Y})
 	} else {
-		log.Printf("⏭️ %s неактивен, пропускаем", buttonName)
+		loggerManager.Info("⏭️ %s неактивен, пропускаем", buttonName)
 	}
 }
 
 // getScreenshotOfItemPage делает скриншот страницы предмета
-func getScreenshotOfItemPage(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, buttonStatus imageInternal.ButtonStatus, scrollRPx int, marginX, marginY int) (image.Image, error) {
+func getScreenshotOfItemPage(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, buttonStatus imageInternal.ButtonStatus, scrollRPx int, marginX, marginY int, loggerManager *logger.LoggerManager) (image.Image, error) {
 	// Если нет скролла, делаем обычный скриншот
 	if scrollRPx <= 26 {
-		log.Println("❌ Скролл не найден (scrollRPx <= 26), делаем обычный скриншот")
+		loggerManager.Info("❌ Скролл не найден (scrollRPx <= 26), делаем обычный скриншот")
 		return screenshotManager.CaptureScreenShot(), nil
 	}
 
 	// Выполняем основной цикл скриншотов и OCR (без нажатия кнопок)
-	fmt.Println("🔄 Выполняем цикл скриншотов со скроллом...")
+	loggerManager.Info("🔄 Выполняем цикл скриншотов со скроллом...")
 	if buttonStatus.Button2Active {
 		img, _, err := clickManager.PerformScreenshotWithScroll(true)
 		if err != nil {
-			log.Printf("❌ Ошибка в основном цикле скриншотов со скроллом: %v\n", err)
+			loggerManager.LogError(err, "Ошибка в основном цикле скриншотов со скроллом")
 			return img, err
 		}
 		return img, nil
 	} else {
 		img, _, err := clickManager.PerformScreenshotWithScroll(false)
 		if err != nil {
-			log.Printf("❌ Ошибка в цикле скриншотов со скроллом: %v\n", err)
+			loggerManager.LogError(err, "Ошибка в цикле скриншотов со скроллом")
 			return img, err
 		}
 		return img, nil
@@ -50,68 +49,76 @@ func getScreenshotOfItemPage(c *config.Config, clickManager *click_manager.Click
 }
 
 // processItemPages обрабатывает отдельный предмет (клик, проверка скролла, обработка скриншотов)
-func processItemPages(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, point image.Point, marginX, marginY int) {
+func processItemPages(c *config.Config, clickManager *click_manager.ClickManager, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, point image.Point, marginX, marginY int, loggerManager *logger.LoggerManager) {
 
 	img := screenshotManager.CaptureScreenShot()
 
 	// Сначала проверяем, есть ли скролл вообще
 	scrollRPx, scrollGPx, scrollBPx, _ := imageInternal.GetPixelColor(img, 290, 15)
-	log.Printf("scrollRPx: %v %v %v\n", scrollRPx, scrollGPx, scrollBPx)
+	loggerManager.Debug("scrollRPx: %v %v %v", scrollRPx, scrollGPx, scrollBPx)
 
 	// Проверяем наличие всех кнопок
-	log.Println("🔍 Проверяем наличие кнопок...")
+	loggerManager.Info("🔍 Проверяем наличие кнопок...")
 	buttonStatus := imageInternal.CheckAllButtonsStatus(img, c, marginX, marginY)
 
 	// Обрабатываем страницу предмета
-	itemPageImg, err := getScreenshotOfItemPage(c, clickManager, screenshotManager, buttonStatus, scrollRPx, marginX, marginY)
+	itemPageImg, err := getScreenshotOfItemPage(c, clickManager, screenshotManager, buttonStatus, scrollRPx, marginX, marginY, loggerManager)
 	if err != nil {
-		log.Printf("❌ Ошибка получения скриншота: %v", err)
+		loggerManager.LogError(err, "Ошибка получения скриншота")
 		return
 	}
 
 	result, debugInfo, jsonData, rawText, err := ocrManager.ProcessImage(itemPageImg, "itemPageImg")
 	if err != nil {
-		log.Printf("❌ Ошибка OCR: %v", err)
+		loggerManager.LogError(err, "Ошибка OCR")
 	}
 
 	// Сохраняем результат в базу данных
 	imageBytes, err := imageInternal.ImageToBytes(itemPageImg)
 	if err != nil {
-		log.Printf("❌ Ошибка конвертации изображения: %v", err)
+		loggerManager.LogError(err, "Ошибка конвертации изображения")
 		return
 	}
 
 	_, err = dbManager.SaveOCRResultToDB("itemPageImg", result, debugInfo, jsonData, rawText, imageBytes, c)
 	if err != nil {
-		log.Printf("Ошибка сохранения в БД: %v", err)
+		loggerManager.LogError(err, "Ошибка сохранения в БД")
 	}
 
 	// Кликаем Back только после последней существующей кнопки
-	log.Println("🔙 Кликаем по кнопке Back...")
+	loggerManager.Info("🔙 Кликаем по кнопке Back...")
 	clickManager.ClickCoordinates(config.Coordinates{X: marginX + c.Click.Back.X, Y: marginY + c.Click.Back.Y})
-	log.Println("✅ Back клик выполнен")
+	loggerManager.Info("✅ Back клик выполнен")
 }
 
-var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, marginX, marginY int) {
-	// берем окно в фокус (кликаем по любым координатам)
+var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, marginX, marginY int, loggerManager *logger.LoggerManager) {
+	// Инициализация окна для получения отступов
+	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
+	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
+	if err != nil {
+		loggerManager.LogError(err, "Ошибка инициализации окна")
+	}
+
+	// берем окно L2 в фокус
 	clickManager.FocusL2Window()
 
 	// цикл обработки страниц
-	cycles := 0
+	for cycles := 0; cycles < c.MaxCyclesItemsList; cycles++ {
+		loggerManager.Info("🔄 Обрабатываем страницу %d из %d", cycles+1, c.MaxCyclesItemsList)
 
-	for cycles < c.MaxCyclesItemsList {
 		// обрабатываем первую страницу
+		// получаем координаты всех предметов на странице
 		itemCoordinates, err := screenshotManager.GetItemListItemsCoordinates()
 		if err != nil {
-			log.Printf("Ошибка при поиске координат первой страницы: %v", err)
+			loggerManager.LogError(err, "Ошибка при поиске координат первой страницы")
 		}
 
-		// Обрабатываем каждый найденный элемент
+		// Обрабатываем каждый найденный предмет
 		for _, coordinate := range itemCoordinates {
-			log.Printf("📍 Обрабатываем элемент в координатах: %v", coordinate)
-			processItemPages(c, clickManager, screenshotManager, dbManager, ocrManager, coordinate, marginX, marginY)
+			loggerManager.Info("📍 Обрабатываем элемент в координатах: %v", coordinate)
+			processItemPages(c, clickManager, screenshotManager, dbManager, ocrManager, coordinate, marginX, marginY, loggerManager)
 		}
 
-		cycles += 1
+		loggerManager.Info("✅ Обработали все элементы на странице %d из %d", cycles+1, c.MaxCyclesItemsList)
 	}
 }

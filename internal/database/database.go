@@ -3,20 +3,22 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"octopus/internal/config"
 	"octopus/internal/helpers"
+	"octopus/internal/logger"
 )
 
 // DatabaseManager содержит функции для работы с базой данных
 type DatabaseManager struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *logger.LoggerManager
 }
 
 // NewDatabaseManager создает новый экземпляр DatabaseManager
-func NewDatabaseManager(db *sql.DB) *DatabaseManager {
+func NewDatabaseManager(db *sql.DB, loggerManager *logger.LoggerManager) *DatabaseManager {
 	return &DatabaseManager{
-		db: db,
+		db:     db,
+		logger: loggerManager,
 	}
 }
 
@@ -24,14 +26,14 @@ func NewDatabaseManager(db *sql.DB) *DatabaseManager {
 func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config) (int, error) {
 	// Проверяем настройку сохранения в БД
 	if cfg.SaveToDB != 1 {
-		log.Printf("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
+		h.logger.Info("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
 		return 0, nil
 	}
 
-	log.Printf("💾 Начинаем сохранение OCR результата в БД...")
-	log.Printf("📄 JSON данные (длина: %d): %s", len(jsonData), jsonData)
-	log.Printf("🔍 Debug info (длина: %d): %s", len(debugInfo), debugInfo[:helpers.Min(100, len(debugInfo))])
-	log.Printf("📝 Raw text (длина: %d): %s", len(rawText), rawText[:helpers.Min(100, len(rawText))])
+	h.logger.Info("💾 Начинаем сохранение OCR результата в БД...")
+	h.logger.Debug("📄 JSON данные (длина: %d): %s", len(jsonData), jsonData)
+	h.logger.Debug("🔍 Debug info (длина: %d): %s", len(debugInfo), debugInfo[:helpers.Min(100, len(debugInfo))])
+	h.logger.Debug("📝 Raw text (длина: %d): %s", len(rawText), rawText[:helpers.Min(100, len(rawText))])
 
 	// Создаем таблицу, если она не существует
 	createTableSQL := `
@@ -64,21 +66,21 @@ func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugIn
 		return 0, fmt.Errorf("ошибка получения ID записи: %v", err)
 	}
 
-	log.Printf("✅ OCR результат сохранен с ID: %d", ocrResultID)
+	h.logger.Info("✅ OCR результат сохранен с ID: %d", ocrResultID)
 
 	// Сохраняем структурированные данные
 	if jsonData != "" {
-		log.Printf("🔧 Сохраняем структурированные данные для OCR ID: %d", ocrResultID)
+		h.logger.Info("🔧 Сохраняем структурированные данные для OCR ID: %d", ocrResultID)
 		err = SaveStructuredDataBatch(h.db, int(ocrResultID), jsonData)
 		if err != nil {
-			log.Printf("❌ Ошибка сохранения структурированных данных: %v", err)
+			h.logger.LogError(err, "Ошибка сохранения структурированных данных")
 		} else {
-			log.Printf("✅ Структурированные данные успешно сохранены")
+			h.logger.Info("✅ Структурированные данные успешно сохранены")
 		}
 	} else {
-		log.Printf("⚠️ JSON данные пустые, пропускаем сохранение structured items")
+		h.logger.Info("⚠️ JSON данные пустые, пропускаем сохранение structured items")
 	}
 
-	log.Printf("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
+	h.logger.Info("OCR результат и изображение сохранены в базу данных для файла: %s (ID: %d)", imagePath, ocrResultID)
 	return int(ocrResultID), nil
 }

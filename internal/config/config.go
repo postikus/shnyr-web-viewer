@@ -58,6 +58,7 @@ type Config struct {
 	WindowTopOffset             int        `mapstructure:"window_top_offset"`
 	ListButtonBottomYCoordinate int        `mapstructure:"list_button_bottom_y_coordinate"`
 	MaxCyclesItemsList          int        `mapstructure:"max_cycles_items_list"`
+	LogFilePath                 string     `mapstructure:"log_file_path"`
 	Screenshot                  Screenshot `mapstructure:"screenshot"`
 	Click                       Click      `mapstructure:"click"`
 	SaveToDB                    int        `mapstructure:"save_to_db"`
