@@ -6,6 +6,7 @@ import (
 	"shnyr/internal/config"
 	"shnyr/internal/database"
 	imageInternal "shnyr/internal/image"
+	"shnyr/internal/interrupt"
 	"shnyr/internal/logger"
 	"shnyr/internal/ocr"
 	"shnyr/internal/screenshot"
@@ -96,7 +97,7 @@ func processItemPages(c *config.Config, clickManager *click_manager.ClickManager
 	loggerManager.Info("✅ Back клик выполнен")
 }
 
-var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, marginX, marginY int, loggerManager *logger.LoggerManager, stopChan <-chan bool) {
+var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
 	// Инициализация окна для получения отступов
 	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
 	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
@@ -107,26 +108,8 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 	// берем окно L2 в фокус
 	clickManager.FocusL2Window()
 
-	// Канал для сигнала прерывания
-	interruptChan := make(chan bool, 1)
-
-	// Горутина для слушания сигнала прерывания
-	go func() {
-		<-stopChan
-		loggerManager.Info("⏹️ Сигнал прерывания получен, завершаем работу...")
-		interruptChan <- true
-	}()
-
 	// цикл обработки страниц с предметами, количество полных проходов хранится в конфиге в переменной max_cycles_items_list
 	for cycles := 0; cycles < c.MaxCyclesItemsList; cycles++ {
-		// Проверяем сигнал прерывания в начале цикла
-		select {
-		case <-interruptChan:
-			loggerManager.Info("⏹️ Прерывание script1 по запросу пользователя")
-			return
-		default:
-		}
-
 		loggerManager.Info("🔄 Проход %d из %d", cycles+1, c.MaxCyclesItemsList)
 
 		// обрабатываем первую страницу
@@ -140,7 +123,7 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 		for _, coordinate := range itemCoordinates {
 			// Проверяем сигнал прерывания в начале обработки каждого предмета
 			select {
-			case <-interruptChan:
+			case <-interruptManager.GetScriptInterruptChan():
 				loggerManager.Info("⏹️ Прерывание script1 по запросу пользователя")
 				return
 			default:

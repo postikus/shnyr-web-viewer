@@ -8,43 +8,15 @@ import (
 	"shnyr/internal/config"
 	"shnyr/internal/database"
 	imageInternal "shnyr/internal/image"
+	"shnyr/internal/interrupt"
 	"shnyr/internal/logger"
 	"shnyr/internal/ocr"
 	"shnyr/internal/screenshot"
 	script1 "shnyr/internal/scripts/script1"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/moutend/go-hook/pkg/keyboard"
-	"github.com/moutend/go-hook/pkg/types"
 	"github.com/tarm/serial"
 )
-
-// Функция для мониторинга горячих клавиш
-func monitorHotkeys(scriptInterruptChan chan<- bool, scriptStartChan chan<- bool, isScriptRunning *bool) {
-	eventChan := make(chan types.KeyboardEvent, 100)
-	go keyboard.Install(nil, eventChan)
-	defer keyboard.Uninstall()
-
-	shiftPressed := false
-
-	for event := range eventChan {
-		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_LSHIFT || event.VKCode == types.VK_RSHIFT) {
-			shiftPressed = true
-		}
-		if event.Message == types.WM_KEYUP && (event.VKCode == types.VK_LSHIFT || event.VKCode == types.VK_RSHIFT) {
-			shiftPressed = false
-		}
-		if event.Message == types.WM_KEYDOWN && event.VKCode == types.VK_RETURN && shiftPressed {
-			scriptStartChan <- true
-		}
-		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_Q || event.VKCode == types.VK_CAPITAL) {
-			// Q всегда только прерывает script1, если он запущен
-			if isScriptRunning != nil && *isScriptRunning {
-				scriptInterruptChan <- true
-			}
-		}
-	}
-}
 
 func main() {
 	// init конфигурации
@@ -108,37 +80,31 @@ func main() {
 	ocrManager := ocr.NewOCRManager(&c)
 	clickManager := click_manager.NewClickManager(portObj, &c, marginX, marginY, screenshotManager, dbManager, loggerManager)
 
+	// Инициализация менеджера прерываний
+	interruptManager := interrupt.NewInterruptManager(loggerManager)
 	loggerManager.Info("⏸️ Программа готова к работе. Нажмите Shift+Enter для запуска script1, Q для прерывания")
 	loggerManager.Info("🔥 Горячие клавиши: Shift+Enter для запуска, Q для прерывания script1")
 
-	// Каналы для управления горячими клавишами
-	scriptInterruptChan := make(chan bool, 1) // Канал для отправки сигнала прерывания в script1
-	scriptStartChan := make(chan bool, 1)
+	// запускаем мониторинг горячих клавиш
+	interruptManager.StartMonitoring()
 
-	isScriptRunning := false
-	// Запускаем мониторинг горячих клавиш в отдельной горутине
-	go monitorHotkeys(scriptInterruptChan, scriptStartChan, &isScriptRunning)
+	for range interruptManager.GetScriptStartChan() {
+		loggerManager.Info("🚀 Запуск script1...")
+		loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
-	for {
-		select {
-		case <-scriptStartChan:
-			loggerManager.Info("🚀 Запуск script1...")
-			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
+		// Канал для завершения script1
+		scriptDoneChan := make(chan bool, 1)
+		interruptManager.SetScriptRunning(true)
 
-			// Канал для завершения script1
-			scriptDoneChan := make(chan bool, 1)
-			isScriptRunning = true
+		// Запускаем script1 в отдельной горутине
+		go func() {
+			script1.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
+			scriptDoneChan <- true
+		}()
 
-			// Запускаем script1 в отдельной горутине
-			go func() {
-				script1.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, marginX, marginY, loggerManager, scriptInterruptChan)
-				scriptDoneChan <- true
-			}()
-
-			// Ждем завершения script1
-			<-scriptDoneChan
-			isScriptRunning = false
-			loggerManager.Info("✅ script1 завершен. Нажмите Shift+Enter для повторного запуска")
-		}
+		// Ждем завершения script1
+		<-scriptDoneChan
+		interruptManager.SetScriptRunning(false)
+		loggerManager.Info("✅ script1 завершен. Нажмите Shift+Enter для повторного запуска")
 	}
 }
