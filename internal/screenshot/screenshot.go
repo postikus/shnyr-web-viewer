@@ -471,20 +471,6 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 
 	prev := screenshots[len(screenshots)-2]
 	last := screenshots[len(screenshots)-1]
-
-	// Сохраняем prev и last скриншоты
-	prevFile, err := os.Create("./imgs/prev.png")
-	if err == nil {
-		png.Encode(prevFile, prev)
-		prevFile.Close()
-	}
-
-	lastFile, err := os.Create("./imgs/last.png")
-	if err == nil {
-		png.Encode(lastFile, last)
-		lastFile.Close()
-	}
-
 	diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
 	if err != nil {
 		return nil, err
