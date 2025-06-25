@@ -18,7 +18,39 @@ func InitializePort(name string, baud int) (*serial.Port, error) {
 }
 
 func SendFastClickToArduino(port *serial.Port) {
-	message := fmt.Sprintf("fast_click")
+	message := "fast_click"
+	_, err := port.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error writing to Arduino:", err)
+	}
+}
+
+func SendKeyDownToArduino(port *serial.Port, key string) {
+	message := fmt.Sprintf("key_down:%s\n", key)
+	_, err := port.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error writing to Arduino:", err)
+	}
+}
+
+func SendKeyUpToArduino(port *serial.Port, key string) {
+	message := fmt.Sprintf("key_up:%s\n", key)
+	_, err := port.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error writing to Arduino:", err)
+	}
+}
+
+func SendPasteToArduino(port *serial.Port) {
+	message := "paste\n"
+	_, err := port.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error writing to Arduino:", err)
+	}
+}
+
+func SendTextToClipboard(port *serial.Port, text string) {
+	message := fmt.Sprintf("copy_to_clipboard:%s\n", text)
 	_, err := port.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error writing to Arduino:", err)

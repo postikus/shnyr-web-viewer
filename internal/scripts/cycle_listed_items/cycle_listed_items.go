@@ -1,4 +1,4 @@
-package cycle_all_items
+package cycle_listed_items
 
 import (
 	"bytes"
@@ -202,150 +202,145 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 }
 
 var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
+	// Инициализируем таблицу предметов
+	err := dbManager.InitializeItemsTable("items.txt")
+	if err != nil {
+		loggerManager.LogError(err, "Ошибка инициализации таблицы предметов")
+		return
+	}
+
+	// Получаем список предметов из БД
+	itemList, err := dbManager.GetItemsList()
+	if err != nil {
+		loggerManager.LogError(err, "Ошибка получения списка предметов из БД")
+		return
+	}
+
+	loggerManager.Info("📋 Загружено %d предметов из базы данных", len(itemList))
+
 	// берем окно L2 в фокус
 	clickManager.FocusL2Window()
 
-	// цикл обработки страниц с предметами, количество полных проходов хранится в конфиге в переменной max_cycles_items_list
-	for cycles := 0; cycles < c.MaxCyclesItemsList; cycles++ {
-		loggerManager.Info("🔄 Проход %d из %d", cycles+1, c.MaxCyclesItemsList)
+	clickManager.ClickCoordinates(image.Point{X: 40, Y: 240})
 
+	for cycles := 0; cycles < c.MaxCyclesItemsList; cycles++ {
 		select {
 		case <-interruptManager.GetScriptInterruptChan():
 			loggerManager.Info("⏹️ Прерывание script1 по запросу пользователя")
 			return
 		default:
 		}
+		loggerManager.Info("🔄 Проход %d из %d", cycles+1, c.MaxCyclesItemsList)
 
-		// обрабатываем все активные кнопки в цикле
-		var buttonIndex int
-		if cycles == 0 {
-			// В первом цикле начинаем с указанной начальной кнопки
-			buttonIndex = c.StartButtonIndex
-		} else {
-			// В последующих циклах начинаем с первой кнопки
-			buttonIndex = 1
-		}
+		for i, item := range itemList {
+			loggerManager.Info("🔍 Обрабатываем предмет %d/%d: %s", i+1, len(itemList), item)
 
-		// Проверяем есть ли вообще активные кнопки
-		hasActiveButtons := false
-		for checkButton := 1; checkButton <= 6; checkButton++ {
-			var checkButtonX int
-			switch checkButton {
-			case 1:
-				checkButtonX = c.Click.Button1.X
-			case 2:
-				checkButtonX = c.Click.Button2.X
-			case 3:
-				checkButtonX = c.Click.Button3.X
-			case 4:
-				checkButtonX = c.Click.Button4.X
-			case 5:
-				checkButtonX = c.Click.Button5.X
-			case 6:
-				checkButtonX = c.Click.Button6.X
+			// Копируем название предмета в буфер обмена
+			clickManager.CopyToClipboard(item)
+
+			// Вставляем название предмета
+			clickManager.Paste()
+
+			// кликаем на поиск
+			clickManager.ClickCoordinates(image.Point{X: 120, Y: 240})
+
+			// обрабатываем все активные кнопки в цикле
+			var buttonIndex int
+			if cycles == 0 {
+				// В первом цикле начинаем с указанной начальной кнопки
+				buttonIndex = c.StartButtonIndex
+			} else {
+				// В последующих циклах начинаем с первой кнопки
+				buttonIndex = 1
 			}
 
-			if screenshotManager.CheckButtonActiveByPixel(checkButtonX, 35) {
-				hasActiveButtons = true
-				break
-			}
-		}
-
-		if !hasActiveButtons {
-			loggerManager.Info("🔍 Активных кнопок не найдено, обрабатываем список предметов без кнопок")
-			err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, cycles == 0 && buttonIndex == c.StartButtonIndex)
-			if err != nil {
-				if err.Error() == "прерывание по запросу пользователя" {
-					loggerManager.Info("⏹️ Завершение работы по прерыванию")
-					return
-				}
-				loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
-			}
-		} else {
-			// Обрабатываем кнопки как обычно
-			for buttonIndex <= 6 {
-				var buttonX, buttonY int
-				switch buttonIndex {
+			// Проверяем есть ли вообще активные кнопки
+			hasActiveButtons := false
+			for checkButton := 1; checkButton <= 6; checkButton++ {
+				var checkButtonX int
+				switch checkButton {
 				case 1:
-					buttonX, buttonY = c.Click.Button1.X, c.Click.Button1.Y
+					checkButtonX = c.Click.Button1.X
 				case 2:
-					buttonX, buttonY = c.Click.Button2.X, c.Click.Button2.Y
+					checkButtonX = c.Click.Button2.X
 				case 3:
-					buttonX, buttonY = c.Click.Button3.X, c.Click.Button3.Y
+					checkButtonX = c.Click.Button3.X
 				case 4:
-					buttonX, buttonY = c.Click.Button4.X, c.Click.Button4.Y
+					checkButtonX = c.Click.Button4.X
 				case 5:
-					buttonX, buttonY = c.Click.Button5.X, c.Click.Button5.Y
+					checkButtonX = c.Click.Button5.X
 				case 6:
-					buttonX, buttonY = c.Click.Button6.X, c.Click.Button6.Y
+					checkButtonX = c.Click.Button6.X
 				}
 
-				// Для начальной кнопки в первом цикле не проверяем активность - сразу кликаем
-				if buttonIndex == c.StartButtonIndex && cycles == 0 {
-					loggerManager.Info("🔘 Обрабатываем начальную кнопку %d (первый цикл)", buttonIndex)
-					clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, true)
-					if err != nil {
-						if err.Error() == "прерывание по запросу пользователя" {
-							loggerManager.Info("⏹️ Завершение работы по прерыванию")
-							return
-						}
-						loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
+				if screenshotManager.CheckButtonActiveByPixel(checkButtonX, 35) {
+					hasActiveButtons = true
+					break
+				}
+			}
+
+			if !hasActiveButtons {
+				loggerManager.Info("🔍 Активных кнопок не найдено, обрабатываем список предметов без кнопок")
+				err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, cycles == 0 && buttonIndex == c.StartButtonIndex)
+				if err != nil {
+					if err.Error() == "прерывание по запросу пользователя" {
+						loggerManager.Info("⏹️ Завершение работы по прерыванию")
+						return
+					}
+					loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
+				}
+			} else {
+				// Обрабатываем кнопки как обычно
+				for buttonIndex <= 6 {
+					var buttonX, buttonY int
+					switch buttonIndex {
+					case 1:
+						buttonX, buttonY = c.Click.Button1.X, c.Click.Button1.Y
+					case 2:
+						buttonX, buttonY = c.Click.Button2.X, c.Click.Button2.Y
+					case 3:
+						buttonX, buttonY = c.Click.Button3.X, c.Click.Button3.Y
+					case 4:
+						buttonX, buttonY = c.Click.Button4.X, c.Click.Button4.Y
+					case 5:
+						buttonX, buttonY = c.Click.Button5.X, c.Click.Button5.Y
+					case 6:
+						buttonX, buttonY = c.Click.Button6.X, c.Click.Button6.Y
 					}
 
-					// Для кнопки 6 продолжаем нажимать пока она активна
-					if buttonIndex == 6 {
-						for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
-							loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
-							clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
-							if err != nil {
-								if err.Error() == "прерывание по запросу пользователя" {
-									loggerManager.Info("⏹️ Завершение работы по прерыванию")
-									return
-								}
-								loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
+					// Для начальной кнопки в первом цикле не проверяем активность - сразу кликаем
+					if buttonIndex == c.StartButtonIndex && cycles == 0 {
+						loggerManager.Info("🔘 Обрабатываем начальную кнопку %d (первый цикл)", buttonIndex)
+						clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
+						err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, true)
+						if err != nil {
+							if err.Error() == "прерывание по запросу пользователя" {
+								loggerManager.Info("⏹️ Завершение работы по прерыванию")
+								return
 							}
+							loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
 						}
-						loggerManager.Info("🔍 Кнопка 6 больше неактивна, завершаем обработку")
-						break
-					}
-				} else if buttonIndex == 1 {
-					// Кнопка 1 всегда кликается без проверки активности
-					loggerManager.Info("🔘 Обрабатываем кнопку 1 (всегда активна)")
-					clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
-					if err != nil {
-						if err.Error() == "прерывание по запросу пользователя" {
-							loggerManager.Info("⏹️ Завершение работы по прерыванию")
-							return
-						}
-						loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
-					}
 
-					// Для кнопки 6 продолжаем нажимать пока она активна
-					if buttonIndex == 6 {
-						for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
-							loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
-							clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
-							if err != nil {
-								if err.Error() == "прерывание по запросу пользователя" {
-									loggerManager.Info("⏹️ Завершение работы по прерыванию")
-									return
+						// Для кнопки 6 продолжаем нажимать пока она активна
+						if buttonIndex == 6 {
+							for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
+								loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
+								clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
+								err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
+								if err != nil {
+									if err.Error() == "прерывание по запросу пользователя" {
+										loggerManager.Info("⏹️ Завершение работы по прерыванию")
+										return
+									}
+									loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
 								}
-								loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
 							}
+							loggerManager.Info("🔍 Кнопка 6 больше неактивна, завершаем обработку")
+							break
 						}
-						loggerManager.Info("🔍 Кнопка 6 больше неактивна, завершаем обработку")
-						break
-					}
-				} else {
-					// Для всех остальных кнопок проверяем активность
-					loggerManager.Info("🔍 Проверяем кнопку %d (начальная кнопка: %d, цикл: %d)", buttonIndex, c.StartButtonIndex, cycles+1)
-
-					if screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
-						loggerManager.Info("🔘 Обрабатываем кнопку %d", buttonIndex)
+					} else if buttonIndex == 1 {
+						// Кнопка 1 всегда кликается без проверки активности
+						loggerManager.Info("🔘 Обрабатываем кнопку 1 (всегда активна)")
 						clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
 						err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
 						if err != nil {
@@ -374,23 +369,51 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 							break
 						}
 					} else {
-						loggerManager.Info("🔍 Кнопка %d неактивна, завершаем обработку", buttonIndex)
-						break
+						// Для всех остальных кнопок проверяем активность
+						loggerManager.Info("🔍 Проверяем кнопку %d (начальная кнопка: %d, цикл: %d)", buttonIndex, c.StartButtonIndex, cycles+1)
+
+						if screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
+							loggerManager.Info("🔘 Обрабатываем кнопку %d", buttonIndex)
+							clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
+							err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
+							if err != nil {
+								if err.Error() == "прерывание по запросу пользователя" {
+									loggerManager.Info("⏹️ Завершение работы по прерыванию")
+									return
+								}
+								loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
+							}
+
+							// Для кнопки 6 продолжаем нажимать пока она активна
+							if buttonIndex == 6 {
+								for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
+									loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
+									clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
+									err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false)
+									if err != nil {
+										if err.Error() == "прерывание по запросу пользователя" {
+											loggerManager.Info("⏹️ Завершение работы по прерыванию")
+											return
+										}
+										loggerManager.LogError(err, "Ошибка при обработке страницы с предметами")
+									}
+								}
+								loggerManager.Info("🔍 Кнопка 6 больше неактивна, завершаем обработку")
+								break
+							}
+						} else {
+							loggerManager.Info("🔍 Кнопка %d неактивна, завершаем обработку", buttonIndex)
+							break
+						}
 					}
+					buttonIndex++
 				}
-				buttonIndex++
 			}
+
+			// кликаем на back
+			clickManager.ClickCoordinates(image.Point{X: c.Click.Back.X, Y: c.Click.Back.Y})
 		}
-
-		loggerManager.Info("✅ Обработали все элементы на странице %d из %d", cycles+1, c.MaxCyclesItemsList)
-
-		// кликает по back
-		clickManager.ClickCoordinates(image.Point{X: c.Click.Back.X, Y: c.Click.Back.Y})
-
-		// возвращается в список
-		clickManager.ClickCoordinates(image.Point{X: c.Click.Button1.X, Y: c.Click.Button1.Y})
 	}
-
 	// Ожидаем завершения всех асинхронных операций сохранения
 	loggerManager.Info("🔄 Ожидаем завершения асинхронных операций сохранения...")
 	dbManager.WaitForAsyncOperations()

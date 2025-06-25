@@ -17,6 +17,7 @@ import (
 	"shnyr/internal/ocr"
 	"shnyr/internal/screenshot"
 	cycleAllItems "shnyr/internal/scripts/cycle_all_items"
+	cycleListedItems "shnyr/internal/scripts/cycle_listed_items"
 	"strconv"
 	"strings"
 
@@ -193,28 +194,53 @@ func main() {
 	// Инициализация менеджера прерываний
 	interruptManager := interrupt.NewInterruptManager(loggerManager)
 	loggerManager.Info("⏸️ Программа готова к работе")
-	loggerManager.Info("🔥 Горячие клавиши: Shift+Enter для запуска, Q для прерывания cycle_all_items")
+	loggerManager.Info("🔥 Горячие клавиши: Ctrl+Shift+1 для cycle_all_items, Ctrl+Shift+2 для cycle_listed_items, Q для прерывания")
 
 	// запускаем мониторинг горячих клавиш
 	interruptManager.StartMonitoring()
 
 	for range interruptManager.GetScriptStartChan() {
-		loggerManager.Info("🚀 Запуск cycle_all_items...")
-		loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
+		// Определяем какой скрипт запускать по типу сигнала
+		scriptType := interruptManager.GetLastScriptType()
 
-		// Канал для завершения cycle_all_items
-		scriptDoneChan := make(chan bool, 1)
-		interruptManager.SetScriptRunning(true)
+		switch scriptType {
+		case "cycle_all_items":
+			loggerManager.Info("🚀 Запуск cycle_all_items...")
+			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
-		// Запускаем cycle_all_items в отдельной горутине
-		go func() {
-			cycleAllItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
-			scriptDoneChan <- true
-		}()
+			// Канал для завершения cycle_all_items
+			scriptDoneChan := make(chan bool, 1)
+			interruptManager.SetScriptRunning(true)
 
-		// Ждем завершения cycle_all_items
-		<-scriptDoneChan
-		interruptManager.SetScriptRunning(false)
-		loggerManager.Info("✅ cycle_all_items завершен. Нажмите Shift+Enter для повторного запуска")
+			// Запускаем cycle_all_items в отдельной горутине
+			go func() {
+				cycleAllItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
+				scriptDoneChan <- true
+			}()
+
+			// Ждем завершения cycle_all_items
+			<-scriptDoneChan
+			interruptManager.SetScriptRunning(false)
+			loggerManager.Info("✅ cycle_all_items завершен. Нажмите Ctrl+Shift+1 для повторного запуска")
+
+		case "cycle_listed_items":
+			loggerManager.Info("🚀 Запуск cycle_listed_items...")
+			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
+
+			// Канал для завершения cycle_listed_items
+			scriptDoneChan := make(chan bool, 1)
+			interruptManager.SetScriptRunning(true)
+
+			// Запускаем cycle_listed_items в отдельной горутине
+			go func() {
+				cycleListedItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
+				scriptDoneChan <- true
+			}()
+
+			// Ждем завершения cycle_listed_items
+			<-scriptDoneChan
+			interruptManager.SetScriptRunning(false)
+			loggerManager.Info("✅ cycle_listed_items завершен. Нажмите Ctrl+Shift+2 для повторного запуска")
+		}
 	}
 }

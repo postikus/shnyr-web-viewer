@@ -13,6 +13,7 @@ type InterruptManager struct {
 	scriptStartChan     chan bool
 	isScriptRunning     *bool
 	loggerManager       *logger.LoggerManager
+	lastScriptType      string
 }
 
 // NewInterruptManager создает новый менеджер прерываний
@@ -23,6 +24,7 @@ func NewInterruptManager(loggerManager *logger.LoggerManager) *InterruptManager 
 		scriptStartChan:     make(chan bool, 1),
 		isScriptRunning:     &isScriptRunning,
 		loggerManager:       loggerManager,
+		lastScriptType:      "",
 	}
 }
 
@@ -51,6 +53,16 @@ func (im *InterruptManager) IsScriptRunning() bool {
 	return *im.isScriptRunning
 }
 
+// GetLastScriptType возвращает тип последнего запущенного скрипта
+func (im *InterruptManager) GetLastScriptType() string {
+	return im.lastScriptType
+}
+
+// SetLastScriptType устанавливает тип последнего запущенного скрипта
+func (im *InterruptManager) SetLastScriptType(scriptType string) {
+	im.lastScriptType = scriptType
+}
+
 // monitorHotkeys мониторит горячие клавиши
 func (im *InterruptManager) monitorHotkeys() {
 	eventChan := make(chan types.KeyboardEvent, 100)
@@ -58,19 +70,40 @@ func (im *InterruptManager) monitorHotkeys() {
 	defer keyboard.Uninstall()
 
 	shiftPressed := false
+	ctrlPressed := false
 
 	for event := range eventChan {
+		// Отслеживаем Shift
 		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_LSHIFT || event.VKCode == types.VK_RSHIFT) {
 			shiftPressed = true
 		}
 		if event.Message == types.WM_KEYUP && (event.VKCode == types.VK_LSHIFT || event.VKCode == types.VK_RSHIFT) {
 			shiftPressed = false
 		}
-		if event.Message == types.WM_KEYDOWN && event.VKCode == types.VK_RETURN && shiftPressed {
+
+		// Отслеживаем Ctrl
+		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_LCONTROL || event.VKCode == types.VK_RCONTROL) {
+			ctrlPressed = true
+		}
+		if event.Message == types.WM_KEYUP && (event.VKCode == types.VK_LCONTROL || event.VKCode == types.VK_RCONTROL) {
+			ctrlPressed = false
+		}
+
+		// Ctrl+Shift+1 для cycle_all_items
+		if event.Message == types.WM_KEYDOWN && event.VKCode == types.VK_1 && shiftPressed && ctrlPressed {
+			im.lastScriptType = "cycle_all_items"
 			im.scriptStartChan <- true
 		}
+
+		// Ctrl+Shift+2 для cycle_listed_items
+		if event.Message == types.WM_KEYDOWN && event.VKCode == types.VK_2 && shiftPressed && ctrlPressed {
+			im.lastScriptType = "cycle_listed_items"
+			im.scriptStartChan <- true
+		}
+
+		// Q для прерывания
 		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_Q || event.VKCode == types.VK_CAPITAL) {
-			// Q всегда только прерывает script1, если он запущен
+			// Q всегда только прерывает скрипт, если он запущен
 			if im.isScriptRunning != nil && *im.isScriptRunning {
 				im.scriptInterruptChan <- true
 			}

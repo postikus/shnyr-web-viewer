@@ -1,0 +1,19 @@
+# Список предметов для поиска
+# Каждый предмет на отдельной строке
+# Строки, начинающиеся с #, игнорируются
+
+gold coin
+top grade 86
+bless enchant S-
+ancient adena
+gemstone s
+vesper thrower
+Skull Carnium
+vesper stormer
+Devilish Maul
+Vesper Fighter
+Octo Claw
+Vesper Caster
+Rising Star
+Veniplant Sword
+Cyclic Cane
