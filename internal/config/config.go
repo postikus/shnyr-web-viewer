@@ -63,7 +63,6 @@ type Config struct {
 	SaveAllScreenshots                       int        `mapstructure:"save_all_screenshots"`
 	ScrollBottomCheckPixelX                  int        `mapstructure:"scroll_bottom_check_pixel_x"`
 	ScrollBottomCheckPixelYScroll            int        `mapstructure:"scroll_bottom_check_pixel_y_scroll"`
-	ScrollBottomCheckPixelYClick             int        `mapstructure:"scroll_bottom_check_pixel_y_click"`
 	BackButtonImageCropHeight                int        `mapstructure:"back_button_image_crop_height"`
 	BackButtonWithListButtonsImageCropHeight int        `mapstructure:"back_button_with_list_buttons_image_crop_height"`
 	ItemsImgsWidth                           int        `mapstructure:"items_imgs_width"`

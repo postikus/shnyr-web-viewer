@@ -42,27 +42,24 @@
 **Методы:**
 - `CaptureScreenShot() (image.Image, error)`  
   Делает скриншот области с проверкой качества (до 5 попыток при плохом качестве).
-- `SaveScreenShot(cfg *config.Config) image.Image`  
-  Сохраняет скриншот в файл с учетом отступов.
 - `SaveScreenShotFull() image.Image`  
-  Сохраняет полный скриншот без обрезки краёв.
+  Сохраняет полный скриншот для дебага.
 - `GetItemListItemsCoordinates() ([]image.Point, error)`  
   Получает координаты всех элементов в списке предметов.
 - `CheckButtonActiveByPixel(x, y int) bool`  
-  Проверяет активность кнопки по пикселю.
+  Проверяет существование кнопки по пикселю.
 - `CheckScrollExists() bool`  
   Проверяет наличие скролла на изображении.
 - `GetPageStatus(config *config.Config) PageStatus`  
   Возвращает полный статус страницы (кнопки + скролл).
 - `PerformScreenshotWithScroll(pageStatus PageStatus, config *config.Config) (image.Image, error)`  
-  Выполняет скриншот со скроллом.
+  Выполняет скриншот со скроллом - кликает и склеивает изображения.
 - `SaveImage(img image.Image, filename string, saveAllScreenshots int, loggerManager *logger.LoggerManager) (string, error)`  
   Сохраняет изображение с настраиваемыми параметрами.
 - `CropImageForText(img image.Image, config *config.Config, Button2Active bool) image.Image`  
   Обрезает изображение для текстового анализа.
 
 **Особенности:**
-- Проверка качества изображений (RGB каналы ≤ 26)
 - Повторные попытки при плохом качестве
 - Асинхронная обработка
 - Подробное логирование процесса

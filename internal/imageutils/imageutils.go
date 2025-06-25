@@ -7,7 +7,7 @@ import (
 )
 
 // CombineImages объединяет изображения
-func CombineImages(imgs []image.Image, smallImgs []image.Image, extraImg image.Image, extraOffset int) (*image.RGBA, error) {
+func CombineImages(imgs []image.Image, extraImg image.Image, extraOffset int) (*image.RGBA, error) {
 	offset := 0
 	width := imgs[0].Bounds().Dx()
 	height := imgs[0].Bounds().Dy()
@@ -16,15 +16,10 @@ func CombineImages(imgs []image.Image, smallImgs []image.Image, extraImg image.I
 	draw.Draw(combinedImg, image.Rect(0, 0, width, height), imgs[0], image.Point{}, draw.Over)
 
 	if len(imgs) > 1 {
-		for _, img := range imgs[1:] {
+		for _, img := range imgs[1 : len(imgs)-1] {
 			offset += 30
 			draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
 		}
-	}
-
-	for _, img := range smallImgs {
-		offset += 10
-		draw.Draw(combinedImg, image.Rect(0, offset, width, height+offset), img, image.Point{}, draw.Over)
 	}
 
 	// Добавляем extraImg с extraOffset, если он не nil

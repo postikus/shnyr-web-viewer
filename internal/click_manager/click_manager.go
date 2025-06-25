@@ -14,31 +14,30 @@ import (
 // ScreenshotManager интерфейс для работы со скриншотами
 type ScreenshotManager interface {
 	CaptureScreenShot() (image.Image, error)
-	SaveScreenShot(cfg *config.Config) image.Image
 	CheckScrollExists() bool
 }
 
 // ClickManager управляет кликами и скроллом
 type ClickManager struct {
-	port             *serial.Port
-	config           *config.Config
-	marginX          int
-	marginY          int
-	screenshotHelper ScreenshotManager
-	dbManager        *database.DatabaseManager
-	logger           *logger.LoggerManager
+	port              *serial.Port
+	config            *config.Config
+	marginX           int
+	marginY           int
+	screenshotManager ScreenshotManager
+	dbManager         *database.DatabaseManager
+	logger            *logger.LoggerManager
 }
 
 // NewClickManager создает новый экземпляр ClickManager
-func NewClickManager(port *serial.Port, config *config.Config, marginX, marginY int, screenshotHelper ScreenshotManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager) *ClickManager {
+func NewClickManager(port *serial.Port, config *config.Config, marginX, marginY int, screenshotManager ScreenshotManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager) *ClickManager {
 	return &ClickManager{
-		port:             port,
-		config:           config,
-		marginX:          marginX,
-		marginY:          marginY,
-		screenshotHelper: screenshotHelper,
-		dbManager:        dbManager,
-		logger:           loggerManager,
+		port:              port,
+		config:            config,
+		marginX:           marginX,
+		marginY:           marginY,
+		screenshotManager: screenshotManager,
+		dbManager:         dbManager,
+		logger:            loggerManager,
 	}
 }
 

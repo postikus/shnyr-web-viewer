@@ -235,17 +235,6 @@ func (h *ScreenshotManager) CaptureScreenShot() (image.Image, error) {
 	return nil, fmt.Errorf("не удалось получить качественный скриншот после %d попыток", maxAttempts)
 }
 
-// SaveScreenShot сохраняет скриншот в файл
-func (h *ScreenshotManager) SaveScreenShot(cfg *config.Config) image.Image {
-	img, _ := SaveScreenshot(config.CoordinatesWithSize{
-		X:      h.marginX,
-		Y:      h.marginY,
-		Width:  300,
-		Height: 361,
-	}, cfg)
-	return img
-}
-
 // SaveScreenShotFull сохраняет полный скриншот
 func (h *ScreenshotManager) SaveScreenShotFull() image.Image {
 	img, _ := SaveScreenshotFull(config.CoordinatesWithSize{
@@ -444,8 +433,8 @@ func (h *ScreenshotManager) checkScrollByCoordinates(x, y int) bool {
 func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, config *config.Config) (image.Image, error) {
 	// Списки для хранения всех скриншотов
 	var screenshots []image.Image
-	var smallScreenshots []image.Image
 
+	// делаем первый скриншот
 	img, err := h.CaptureScreenShot()
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить качественный скриншот")
@@ -454,11 +443,9 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 
 	// создаем переменные scrollToBottom и clickToBottom
 	scrollToBottom := h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYScroll)
-	clickToBottom := false
 
 	// создаем переменные scrollCounter и clickCounter для скролла вверх и ограничений на количество кликов и скролла вниз
 	scrollCounter := 0
-	clickCounter := 0
 
 	// пока scrollToBottom не станет true, скроллим вниз
 	for !scrollToBottom {
@@ -475,53 +462,35 @@ func (h *ScreenshotManager) PerformScreenshotWithScroll(pageStatus PageStatus, c
 		}
 	}
 
-	// кликаем по скроллу чтобы перенести мышку на скролл
-	arduino.ClickCoordinates(config, image.Point{X: h.marginX + config.Click.Scroll.X, Y: h.marginY + config.Click.Scroll.Y})
-	clickCounter++
-
-	// пока clickToBottom не станет true, кликаем по скроллу
-	for !clickToBottom {
-		arduino.FastClick(config)
-		img, err := h.CaptureScreenShot()
-		if err != nil {
-			return nil, fmt.Errorf("не удалось получить качественный скриншот во время кликов")
-		}
-		clickToBottom = h.checkScrollByCoordinates(config.ScrollBottomCheckPixelX, config.ScrollBottomCheckPixelYClick)
-		clickCounter++
-		smallScreenshots = append(smallScreenshots, img)
-		if clickCounter > 10 {
-			clickToBottom = true
-		}
-	}
-
 	// делаем в цикле скроллы наверх как сумма clickCounter и scrollCounter
-	totalScrollsUp := clickCounter + scrollCounter + 5
+	totalScrollsUp := scrollCounter
 	arduino.ScrollUp(config, totalScrollsUp)
 	arduino.ScrollUp(config, 1)
 
 	var finalImage image.Image
 
-	if len(smallScreenshots) >= 2 {
-		prev := smallScreenshots[len(smallScreenshots)-2]
-		last := smallScreenshots[len(smallScreenshots)-1]
-		diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
-		if err != nil {
-			return nil, err
-		} else {
-			finalImage, _ = imageutils.CombineImages(screenshots, smallScreenshots[:len(smallScreenshots)-1], smallScreenshots[len(smallScreenshots)-1], diff)
-		}
-	} else if len(smallScreenshots) == 1 {
-		prev := screenshots[len(screenshots)-1]
-		last := smallScreenshots[0]
-		diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
-		if err != nil {
-			return nil, err
-		} else {
-			finalImage, _ = imageutils.CombineImages(screenshots, nil, smallScreenshots[0], diff)
-		}
-	} else {
-		finalImage, _ = imageutils.CombineImages(screenshots, nil, nil, 0)
+	prev := screenshots[len(screenshots)-2]
+	last := screenshots[len(screenshots)-1]
+
+	// Сохраняем prev и last скриншоты
+	prevFile, err := os.Create("./imgs/prev.png")
+	if err == nil {
+		png.Encode(prevFile, prev)
+		prevFile.Close()
 	}
+
+	lastFile, err := os.Create("./imgs/last.png")
+	if err == nil {
+		png.Encode(lastFile, last)
+		lastFile.Close()
+	}
+
+	diff, err := imageutils.LastColorStripeDistanceDiff(prev, last, 26, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	finalImage, _ = imageutils.CombineImages(screenshots, screenshots[len(screenshots)-1], diff)
 
 	combinedImg := imageutils.CropOpacityPixel(finalImage)
 	return combinedImg, nil
