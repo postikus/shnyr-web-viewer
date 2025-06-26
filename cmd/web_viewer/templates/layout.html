@@ -17,15 +17,12 @@
 		<div class="tabs">
 			<a href="/?tab=main" class="tab {{if eq .ActiveTab "main"}}active{{end}}">🏠 Главная</a>
 			<a href="/?tab=item_search" class="tab {{if eq .ActiveTab "item_search"}}active{{end}}">🔍 Поиск по предмету</a>
-			<a href="/?tab=third" class="tab {{if eq .ActiveTab "third"}}active{{end}}">📊 Третья вкладка</a>
 		</div>
 	</div>
 	
 	<div class="content">
 		{{if eq .ActiveTab "item_search"}}
 			{{template "item_search.html" .}}
-		{{else if eq .ActiveTab "third"}}
-			{{template "third_tab.html" .}}
 		{{else}}
 			{{template "main_tab.html" .}}
 		{{end}}
