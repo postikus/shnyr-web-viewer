@@ -1,0 +1,85 @@
+<div class="item-search-form">
+	<form method="GET" action="/">
+		<input type="hidden" name="tab" value="item_search">
+		<input type="text" name="item_search" value="{{.ItemSearch}}" placeholder="Введите название предмета..." class="item-search-input">
+		
+		<div class="category-filters">
+			<label class="filter-label">Искать в категориях:</label>
+			<div class="filter-checkboxes">
+				<label class="filter-checkbox">
+					<input type="checkbox" name="category_buy_consumables" value="1" {{if .CategoryBuyConsumables}}checked{{end}}>
+					💰 Покупай! (расходники)
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" name="category_buy_equipment" value="1" {{if .CategoryBuyEquipment}}checked{{end}}>
+					💰 Покупай! (экипировка)
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" name="category_sell_consumables" value="1" {{if .CategorySellConsumables}}checked{{end}}>
+					💸 Продавай! (расходники)
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" name="category_sell_equipment" value="1" {{if .CategorySellEquipment}}checked{{end}}>
+					💸 Продавай! (экипировка)
+				</label>
+			</div>
+		</div>
+		
+		<button type="submit" class="item-search-button">🔍 Найти</button>
+	</form>
+</div>
+
+{{if .ItemSearch}}
+	<div class="search-results-info">
+		🔍 Поиск по предмету: "{{.ItemSearch}}" | Найдено: {{len .ItemResults}} записей
+		{{if or .CategoryBuyConsumables .CategoryBuyEquipment .CategorySellConsumables .CategorySellEquipment}}
+			<br><small>В категориях: 
+			{{if .CategoryBuyConsumables}}💰 Покупай! (расходники){{end}}
+			{{if .CategoryBuyEquipment}}{{if .CategoryBuyConsumables}}, {{end}}💰 Покупай! (экипировка){{end}}
+			{{if .CategorySellConsumables}}{{if or .CategoryBuyConsumables .CategoryBuyEquipment}}, {{end}}💸 Продавай! (расходники){{end}}
+			{{if .CategorySellEquipment}}{{if or .CategoryBuyConsumables .CategoryBuyEquipment .CategorySellConsumables}}, {{end}}💸 Продавай! (экипировка){{end}}
+			</small>
+		{{end}}
+	</div>
+	
+	{{if .ItemResults}}
+		<table>
+			<thead>
+				<tr>
+					<th>Название</th>
+					<th>Краткое название</th>
+					<th>Улучшение</th>
+					<th>Цена</th>
+					<th>Количество</th>
+					<th>Пакет</th>
+					<th>Владелец</th>
+					<th>Категория</th>
+					<th>Дата</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{range .ItemResults}}
+				<tr>
+					<td>{{.Title}}</td>
+					<td>{{.TitleShort}}</td>
+					<td>{{.Enhancement}}</td>
+					<td>{{formatPrice .Price}}</td>
+					<td>{{.Count}}</td>
+					<td>{{if .Package}}✔️{{else}}❌{{end}}</td>
+					<td>{{.Owner}}</td>
+					<td>{{formatCategory .Category}}</td>
+					<td>{{formatDateTime .CreatedAt}}</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	{{else}}
+		<div class="no-results">
+			<p>По вашему запросу ничего не найдено.</p>
+		</div>
+	{{end}}
+{{else}}
+	<div class="search-results-info">
+		💡 Введите название предмета для поиска и выберите категории для поиска
+	</div>
+{{end}} 

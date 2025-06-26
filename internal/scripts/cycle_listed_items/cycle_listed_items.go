@@ -71,7 +71,7 @@ var processItemPage = func(c *config.Config,
 }
 
 // processItemPageWithButtonLogic обрабатывает страницу с кнопкой (обработка изображения, OCR, сохранение в БД)
-func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager, currentItem string) error {
+func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager, currentItem string, itemCategory string) error {
 	// получаем статус страницы
 	pageStatus := screenshotManager.GetPageStatus(c)
 
@@ -93,11 +93,15 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 	var imgBytes bytes.Buffer
 	png.Encode(&imgBytes, croppedFinalImg)
 
-	// Получаем категорию текущего предмета
-	itemCategory, err := dbManager.GetItemCategory(currentItem)
-	if err != nil {
-		loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
-		itemCategory = "unknown" // Используем unknown если не удалось получить категорию
+	// Используем переданную категорию вместо получения из БД
+	if itemCategory == "" {
+		// Получаем категорию текущего предмета только если она не передана
+		var err error
+		itemCategory, err = dbManager.GetItemCategory(currentItem)
+		if err != nil {
+			loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
+			itemCategory = "unknown" // Используем unknown если не удалось получить категорию
+		}
 	}
 
 	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, itemCategory, currentItem)
@@ -111,7 +115,7 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 }
 
 // processItem обрабатывает отдельный предмет со всеми его кнопками
-func processItemListPage(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager, isFirstCycle bool, currentItem string) error {
+func processItemListPage(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager, isFirstCycle bool, currentItem string, itemCategory string) error {
 	itemCoordinates, err := screenshotManager.GetItemListItemsCoordinates()
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка при поиске координат первой страницы")
@@ -138,12 +142,15 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 		loggerManager.Info("📍 Последующий цикл: начинаем с первого предмета из %d", len(itemCoordinates))
 	}
 
-	// Проверяем категорию текущего предмета
-	itemCategory, err := dbManager.GetItemCategory(currentItem)
-	if err != nil {
-		loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
-		// Если не удалось получить категорию, обрабатываем как equipment (с кнопками)
-		itemCategory = "buy_equipment"
+	// Проверяем категорию текущего предмета, если она не передана
+	if itemCategory == "" {
+		var err error
+		itemCategory, err = dbManager.GetItemCategory(currentItem)
+		if err != nil {
+			loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
+			// Если не удалось получить категорию, обрабатываем как equipment (с кнопками)
+			itemCategory = "buy_equipment"
+		}
 	}
 
 	// Определяем тип предмета на основе категории
@@ -188,7 +195,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 		pageStatus := screenshotManager.GetPageStatus(c)
 
 		// обрабатываем первую страницу предмета
-		err := processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+		err := processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 		if err != nil {
 			loggerManager.LogError(err, "Ошибка при обработке первой страницы")
 			return err
@@ -201,7 +208,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 				clickManager.ClickCoordinates(image.Point{X: c.Click.Button2.X, Y: c.Click.Button2.Y})
 
 				// обрабатываем страницу кнопки 2
-				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 				if err != nil {
 					loggerManager.LogError(err, "Ошибка при обработке кнопки 2")
 					return err
@@ -215,7 +222,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 				clickManager.ClickCoordinates(image.Point{X: c.Click.Button3.X, Y: c.Click.Button3.Y})
 
 				// обрабатываем страницу кнопки 3
-				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 				if err != nil {
 					loggerManager.LogError(err, "Ошибка при обработке кнопки 3")
 					return err
@@ -229,7 +236,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 				clickManager.ClickCoordinates(image.Point{X: c.Click.Button4.X, Y: c.Click.Button4.Y})
 
 				// обрабатываем страницу кнопки 4
-				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 				if err != nil {
 					loggerManager.LogError(err, "Ошибка при обработке кнопки 4")
 					return err
@@ -243,7 +250,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 				clickManager.ClickCoordinates(image.Point{X: c.Click.Button5.X, Y: c.Click.Button5.Y})
 
 				// обрабатываем страницу кнопки 5
-				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 				if err != nil {
 					loggerManager.LogError(err, "Ошибка при обработке кнопки 4")
 					return err
@@ -257,7 +264,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 				clickManager.ClickCoordinates(image.Point{X: c.Click.Button6.X, Y: c.Click.Button6.Y})
 
 				// обрабатываем страницу кнопки 6
-				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem)
+				err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, currentItem, itemCategory)
 				if err != nil {
 					loggerManager.LogError(err, "Ошибка при обработке кнопки 4")
 					return err
@@ -345,7 +352,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 
 		if !hasActiveButtons {
 			loggerManager.Info("🔍 Активных кнопок не найдено, обрабатываем список предметов без кнопок")
-			err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, cycles == 0 && buttonIndex == startButtonIndex, item)
+			err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, cycles == 0 && buttonIndex == startButtonIndex, item, category)
 			if err != nil {
 				if err.Error() == "прерывание по запросу пользователя" {
 					loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -376,7 +383,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 				if buttonIndex == startButtonIndex && cycles == 0 {
 					loggerManager.Info("🔘 Обрабатываем начальную кнопку %d (первый цикл)", buttonIndex)
 					clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, true, item)
+					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, true, item, category)
 					if err != nil {
 						if err.Error() == "прерывание по запросу пользователя" {
 							loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -390,7 +397,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 						for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
 							loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
 							clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item)
+							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item, category)
 							if err != nil {
 								if err.Error() == "прерывание по запросу пользователя" {
 									loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -406,7 +413,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 					// Кнопка 1 всегда кликается без проверки активности
 					loggerManager.Info("🔘 Обрабатываем кнопку 1 (всегда активна)")
 					clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item)
+					err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item, category)
 					if err != nil {
 						if err.Error() == "прерывание по запросу пользователя" {
 							loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -420,7 +427,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 						for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
 							loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
 							clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item)
+							err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item, category)
 							if err != nil {
 								if err.Error() == "прерывание по запросу пользователя" {
 									loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -439,7 +446,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 					if screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
 						loggerManager.Info("🔘 Обрабатываем кнопку %d", buttonIndex)
 						clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-						err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item)
+						err := processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item, category)
 						if err != nil {
 							if err.Error() == "прерывание по запросу пользователя" {
 								loggerManager.Info("⏹️ Завершение работы по прерыванию")
@@ -453,7 +460,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 							for screenshotManager.CheckButtonActiveByPixel(buttonX, 35) {
 								loggerManager.Info("🔘 Повторно обрабатываем кнопку 6")
 								clickManager.ClickCoordinates(image.Point{X: buttonX, Y: buttonY})
-								err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item)
+								err = processItemListPage(c, screenshotManager, ocrManager, dbManager, clickManager, loggerManager, interruptManager, false, item, category)
 								if err != nil {
 									if err.Error() == "прерывание по запросу пользователя" {
 										loggerManager.Info("⏹️ Завершение работы по прерыванию")

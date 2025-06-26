@@ -8,5 +8,18 @@ services:
     envVars:
       - key: PORT
         value: 8080
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
     healthCheckPath: /
-    autoDeploy: true 
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile 

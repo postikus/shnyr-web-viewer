@@ -185,7 +185,7 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 	defer stmt.Close()
 
 	lineNumber := 0
-	currentCategory := "buy_consumables" // По умолчанию первая категория - скупка расходников
+	currentCategory := "buy_consumables" // По умолчанию первая категория - покупка расходников
 	buyConsumablesCount := 0
 	buyEquipmentCount := 0
 	sellConsumablesCount := 0

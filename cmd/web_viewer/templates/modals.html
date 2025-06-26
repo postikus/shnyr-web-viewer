@@ -1,0 +1,45 @@
+<!-- Модальное окно для изображений -->
+<div id="imageModal" class="modal">
+	<div class="modal-content">
+		<span class="close-modal" onclick="closeImageModal()">&times;</span>
+		<div class="modal-header">
+			<h3 class="modal-title" id="modalTitle">ШНЫРЬ НАМУТИЛ СКРИНШОТ</h3>
+			<div class="modal-info" id="modalInfo">OCR Result</div>
+		</div>
+		<img id="modalImage" class="modal-image" src="" alt="Full size image" onclick="closeImageModal()">
+		<div id="modalStructuredData" class="modal-structured-data"></div>
+	</div>
+</div>
+
+<!-- Модальное окно для детального просмотра -->
+<div id="detailModal" class="modal">
+	<div class="modal-content">
+		<span class="close" onclick="closeDetailModal()">&times;</span>
+		<div class="modal-title" id="detailModalTitle"></div>
+		
+		<div class="modal-section">
+			<h3>📸 Скриншот</h3>
+			<img id="detailModalImage" class="modal-image" alt="Screenshot">
+		</div>
+		
+		<div class="modal-section">
+			<h3>📁 Путь к изображению</h3>
+			<div id="detailModalImagePath"></div>
+		</div>
+		
+		<div class="modal-section">
+			<h3>📋 Структурированные данные</h3>
+			<div id="detailModalStructuredData"></div>
+		</div>
+		
+		<div class="modal-section">
+			<h3>📄 Сырой текст</h3>
+			<div id="detailModalRawText"></div>
+		</div>
+		
+		<div class="modal-section">
+			<h3>📝 Отладочная информация</h3>
+			<div id="detailModalDebugInfo"></div>
+		</div>
+	</div>
+</div> 

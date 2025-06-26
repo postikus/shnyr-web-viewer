@@ -3,15 +3,42 @@
 .gitignore
 
 # IDE
-.vscode
-.idea
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Logs
+logs/
 *.log
+
+# Temporary files
+tmp/
+temp/
+
+# Documentation
+README.md
+DEPLOY.md
+DYNAMIC_WINDOW_README.md
+docs/
+
+# Examples
+examples/
+
+# Data files
+data/
+*.txt
+!items.txt
+
+# Images
+imgs/
+
+# Vendor (will be downloaded during build)
+vendor/
 
 # Build artifacts
 *.exe
@@ -21,20 +48,8 @@ Thumbs.db
 
 # Test files
 *_test.go
+test/
 
-# Documentation
-README.md
-*.md
-
-# Images and data
-imgs/
-data/
-*.png
-*.jpg
-*.jpeg
-
-# Config files that might contain sensitive data
-config.yaml
-
-# Vendor (will be downloaded during build)
-vendor/ 
+# Development files
+.env
+.env.local 

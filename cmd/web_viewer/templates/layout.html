@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>OCR Results</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="container">
+	<div class="header">
+		<div class="header-content">
+			<div class="title-section">
+				<h1>👓 ШНЫРЬ v0.2</h1>
+			</div>
+		</div>
+		
+		<div class="tabs">
+			<a href="/?tab=main" class="tab {{if eq .ActiveTab "main"}}active{{end}}">🏠 Главная</a>
+			<a href="/?tab=item_search" class="tab {{if eq .ActiveTab "item_search"}}active{{end}}">🔍 Поиск по предмету</a>
+			<a href="/?tab=third" class="tab {{if eq .ActiveTab "third"}}active{{end}}">📊 Третья вкладка</a>
+		</div>
+	</div>
+	
+	<div class="content">
+		{{if eq .ActiveTab "item_search"}}
+			{{template "item_search.html" .}}
+		{{else if eq .ActiveTab "third"}}
+			{{template "third_tab.html" .}}
+		{{else}}
+			{{template "main_tab.html" .}}
+		{{end}}
+	</div>
+</div>
+
+<!-- Модальные окна -->
+{{template "modals.html" .}}
+
+<script src="/static/js/app.js"></script>
+</body>
+</html> 

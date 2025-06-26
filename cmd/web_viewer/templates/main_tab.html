@@ -1,0 +1,96 @@
+<div class="search-filters">
+	<form method="GET" action="/" class="search-form">
+		<input type="hidden" name="tab" value="{{.ActiveTab}}">
+		<div class="search-row">
+			<input type="text" name="search" value="{{.SearchQuery}}" placeholder="Поиск по названию, владельцу, цене..." class="search-input">
+			<input type="number" name="min_price" value="{{.MinPrice}}" placeholder="Мин. цена" class="price-input" min="0" step="0.01">
+			<input type="number" name="max_price" value="{{.MaxPrice}}" placeholder="Макс. цена" class="price-input" min="0" step="0.01">
+			<button type="submit" class="search-button">🔍 Поиск</button>
+			{{if or .SearchQuery .MinPrice .MaxPrice}}
+			<a href="/?tab={{.ActiveTab}}" class="clear-button">❌ Очистить</a>
+			{{end}}
+		</div>
+	</form>
+</div>
+
+{{if .SearchQuery}}
+<div class="search-info">
+	🔍 Поиск: "{{.SearchQuery}}" | Найдено: {{.TotalCount}} записей
+</div>
+{{end}}
+
+<div class="stats">
+	📊 Страница {{.CurrentPage}} из {{.TotalPages}} | 
+	📋 Показано {{len .Results}} записей из {{.TotalCount}}
+</div>
+
+<div class="mobile-table">
+<table>
+<tr>
+	<th>Structured Data</th>
+	<th>Screenshot</th>
+	<th>Created</th>
+</tr>
+{{range .Results}}
+<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-image-path="{{.ImagePath}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}","category":"{{jsEscape $item.Category}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
+<td>
+	{{if .Items}}
+	<div class="structured-table">
+	<table>
+	<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th><th>Category</th></tr>
+	{{range .Items}}
+	<tr class="cheapest-item-{{.Enhancement}}-{{.Price}}">
+	<td>{{.Title}}</td>
+	<td>{{.TitleShort}}</td>
+	<td>{{.Enhancement}}</td>
+	<td>{{formatPrice .Price}}</td>
+	<td>{{.Count}}</td>
+	<td>{{if .Package}}✔️{{end}}</td>
+	<td>{{.Owner}}</td>
+	<td>{{formatCategory .Category}}</td>
+	</tr>
+	{{end}}
+	</table>
+	</div>
+	{{else}}
+	<div class="no-data">No structured data</div>
+	{{end}}
+</td>
+<td class="image-cell">
+	{{if .ImageData}}
+	<img src="data:image/png;base64,{{base64encode .ImageData}}" class="ocr-image" style="cursor: pointer;" />
+	{{else}}
+	<div class="no-data">No image data</div>
+	{{end}}
+</td>
+<td class="date-cell">{{formatDateTime .CreatedAt}}</td>
+</tr>
+{{end}}
+</table>
+</div>
+
+<div class="pagination">
+	{{if .HasPrev}}
+		<a href="?page=1{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}&tab={{.ActiveTab}}">« Первая</a>
+		<a href="?page={{.PrevPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}&tab={{.ActiveTab}}">‹ Предыдущая</a>
+	{{else}}
+		<span class="disabled">« Первая</span>
+		<span class="disabled">‹ Предыдущая</span>
+	{{end}}
+	
+	{{range $i := sequence .CurrentPage .TotalPages}}
+		{{if eq $i $.CurrentPage}}
+			<span class="current">{{$i}}</span>
+		{{else}}
+			<a href="?page={{$i}}{{if $.SearchQuery}}&search={{$.SearchQuery}}{{end}}{{if $.MinPrice}}&min_price={{$.MinPrice}}{{end}}{{if $.MaxPrice}}&max_price={{$.MaxPrice}}{{end}}&tab={{$.ActiveTab}}">{{$i}}</a>
+		{{end}}
+	{{end}}
+	
+	{{if .HasNext}}
+		<a href="?page={{.NextPage}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}&tab={{.ActiveTab}}">Следующая ›</a>
+		<a href="?page={{.TotalPages}}{{if .SearchQuery}}&search={{.SearchQuery}}{{end}}{{if .MinPrice}}&min_price={{.MinPrice}}{{end}}{{if .MaxPrice}}&max_price={{.MaxPrice}}{{end}}&tab={{.ActiveTab}}">Последняя »</a>
+	{{else}}
+		<span class="disabled">Следующая ›</span>
+		<span class="disabled">Последняя »</span>
+	{{end}}
+</div> 
