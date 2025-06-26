@@ -100,7 +100,7 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 		itemCategory = "unknown" // Используем unknown если не удалось получить категорию
 	}
 
-	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, itemCategory)
+	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, itemCategory, currentItem)
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка при сохранении результата в базу")
 		return err
@@ -555,6 +555,10 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 			}
 			loggerManager.LogError(err, "Ошибка при обработке предметов sell_equipment")
 		}
+
+		// Кликаем на координаты 15, 265 для перехода между разделами
+		clickManager.ClickCoordinates(image.Point{X: 15, Y: 265})
+		loggerManager.Info("📍 Переходим между разделами (координаты 15, 265)")
 
 		loggerManager.Info("✅ Завершен проход %d", cycles+1)
 	}

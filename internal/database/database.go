@@ -27,7 +27,7 @@ func NewDatabaseManager(db *sql.DB, loggerManager *logger.LoggerManager) *Databa
 }
 
 // SaveOCRResultToDB сохраняет результат OCR в базу данных
-func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config, itemCategory string) (int, error) {
+func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config, itemCategory string, currentItemName string) (int, error) {
 	// Проверяем настройку сохранения в БД
 	if cfg.SaveToDB != 1 {
 		h.logger.Info("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
@@ -74,7 +74,7 @@ func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugIn
 		h.wg.Add(1)
 		go func(ocrID int, jsonStr string) {
 			defer h.wg.Done()
-			err := SaveStructuredDataBatch(h.db, ocrID, jsonStr, itemCategory)
+			err := SaveStructuredDataBatch(h.db, ocrID, jsonStr, itemCategory, currentItemName)
 			if err != nil {
 				h.logger.LogError(err, "Ошибка асинхронного сохранения структурированных данных")
 			} else {
@@ -306,6 +306,16 @@ func (h *DatabaseManager) GetItemsWithCategories() (map[string][]string, error) 
 	}
 
 	return itemsByCategory, nil
+}
+
+// GetItemIDByName возвращает ID предмета по названию
+func (h *DatabaseManager) GetItemIDByName(itemName string) (int, error) {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM items_list WHERE name = ?", itemName).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения ID предмета '%s': %v", itemName, err)
+	}
+	return id, nil
 }
 
 // GetItemCategory возвращает категорию конкретного предмета

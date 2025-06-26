@@ -11,7 +11,7 @@ gold coin
 
 # Equipment для скупки
 Cyclic Cane
-vesper
+vesper thrower
 ===
 
 # Продажа (sell) - обрабатываются ВТОРЫМИ

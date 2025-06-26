@@ -55,6 +55,19 @@ func main() {
 	}
 	fmt.Println("Таблица ocr_results создана")
 
+	// Создаём таблицу предметов с категориями
+	itemsTableSQL := `CREATE TABLE items_list (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(255) NOT NULL UNIQUE,
+		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`
+	_, err = db2.Exec(itemsTableSQL)
+	if err != nil {
+		log.Fatalf("Ошибка создания таблицы items_list: %v", err)
+	}
+	fmt.Println("Таблица items_list создана")
+
 	// Создаём таблицу для структурированных данных
 	structuredTableSQL := `CREATE TABLE structured_items (
 		id INT AUTO_INCREMENT PRIMARY KEY,
@@ -66,8 +79,11 @@ func main() {
 		package BOOLEAN DEFAULT FALSE,
 		owner VARCHAR(255),
 		count VARCHAR(10),
+		category VARCHAR(50),
+		item_list_id INT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
+		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE,
+		FOREIGN KEY (item_list_id) REFERENCES items_list(id) ON DELETE SET NULL
 	)`
 	_, err = db2.Exec(structuredTableSQL)
 	if err != nil {

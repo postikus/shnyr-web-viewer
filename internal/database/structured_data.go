@@ -7,7 +7,7 @@ import (
 )
 
 // SaveStructuredDataBatch сохраняет структурированные данные в базу данных
-func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemCategory string) error {
+func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemCategory string, currentItemName string) error {
 	if jsonData == "" {
 		return nil // Нет данных для сохранения
 	}
@@ -31,8 +31,10 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemC
 		owner VARCHAR(255),
 		count VARCHAR(10),
 		category VARCHAR(50),
+		item_list_id INT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
+		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE,
+		FOREIGN KEY (item_list_id) REFERENCES items_list(id) ON DELETE SET NULL
 	)`
 
 	_, err = db.Exec(createTableSQL)
@@ -44,6 +46,18 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemC
 	if len(ocrResult.TextRecognition.StructuredData) == 0 {
 		fmt.Printf("ℹ️ Нет структурированных данных для сохранения (OCR ID: %d)\n", ocrResultID)
 		return nil
+	}
+
+	// Получаем ID текущего предмета из items_list
+	var itemListID *int
+	if currentItemName != "" {
+		var id int
+		err := db.QueryRow("SELECT id FROM items_list WHERE name = ?", currentItemName).Scan(&id)
+		if err == nil {
+			itemListID = &id
+		} else {
+			fmt.Printf("⚠️ Не удалось найти предмет '%s' в items_list: %v\n", currentItemName, err)
+		}
 	}
 
 	// Начинаем транзакцию для batch обработки
@@ -58,7 +72,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemC
 	}()
 
 	// Подготавливаем запрос для batch вставки
-	insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, item_list_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	stmt, err := tx.Prepare(insertSQL)
 	if err != nil {
 		return fmt.Errorf("ошибка подготовки запроса: %v", err)
@@ -74,7 +88,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemC
 			enhancement = "0"
 		}
 
-		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count, itemCategory)
+		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count, itemCategory, itemListID)
 		if err != nil {
 			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
 		}
@@ -87,7 +101,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemC
 		return fmt.Errorf("ошибка подтверждения транзакции: %v", err)
 	}
 
-	fmt.Printf("✅ Сохранено %d/%d структурированных элементов для OCR результата ID: %d (категория: %s)\n",
-		processedCount, len(ocrResult.TextRecognition.StructuredData), ocrResultID, itemCategory)
+	fmt.Printf("✅ Сохранено %d/%d структурированных элементов для OCR результата ID: %d (категория: %s, item_list_id: %v)\n",
+		processedCount, len(ocrResult.TextRecognition.StructuredData), ocrResultID, itemCategory, itemListID)
 	return nil
 }
