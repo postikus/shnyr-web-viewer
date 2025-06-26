@@ -390,3 +390,42 @@ func (h *DatabaseManager) RecreateItemsTable() error {
 	h.logger.Info("✅ Таблица items_list пересоздана успешно")
 	return nil
 }
+
+// GetCurrentStatus получает текущий статус из базы данных
+func (h *DatabaseManager) GetCurrentStatus() (string, error) {
+	var status string
+	err := h.db.QueryRow("SELECT current_status FROM status ORDER BY created_at DESC LIMIT 1").Scan(&status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "stopped", nil // По умолчанию считаем что система остановлена
+		}
+		return "", err
+	}
+	return status, nil
+}
+
+// GetLatestUnexecutedAction получает последнее невыполненное действие
+func (h *DatabaseManager) GetLatestUnexecutedAction() (string, int, error) {
+	var action string
+	var id int
+	err := h.db.QueryRow("SELECT id, action FROM actions WHERE executed = 0 ORDER BY created_at DESC LIMIT 1").Scan(&id, &action)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", 0, nil // Нет невыполненных действий
+		}
+		return "", 0, err
+	}
+	return action, id, nil
+}
+
+// MarkActionAsExecuted помечает действие как выполненное
+func (h *DatabaseManager) MarkActionAsExecuted(actionID int) error {
+	_, err := h.db.Exec("UPDATE actions SET executed = 1 WHERE id = ?", actionID)
+	return err
+}
+
+// UpdateStatus обновляет статус в базе данных
+func (h *DatabaseManager) UpdateStatus(status string) error {
+	_, err := h.db.Exec("INSERT INTO status (current_status) VALUES (?)", status)
+	return err
+}

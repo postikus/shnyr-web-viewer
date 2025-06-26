@@ -162,19 +162,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Обработка завершения программы
-	defer func() {
-		err = updateStatus(db, "stopped")
-		if err != nil {
-			loggerManager.LogError(err, "Error updating status to stopped on exit")
-		}
-		err = addAction(db, "Программа завершена")
-		if err != nil {
-			loggerManager.LogError(err, "Error adding exit action")
-		}
-		loggerManager.Info("🛑 Программа завершена")
-	}()
-
 	// Проверяем подключение к базе данных
 	err = db.Ping()
 	if err != nil {
@@ -228,6 +215,20 @@ func main() {
 
 	// Инициализация менеджера прерываний
 	interruptManager := interrupt.NewInterruptManager(loggerManager)
+
+	// Обработка завершения программы (после создания dbManager)
+	defer func() {
+		err = dbManager.UpdateStatus("stopped")
+		if err != nil {
+			loggerManager.LogError(err, "Error updating status to stopped on exit")
+		}
+		err = addAction(db, "Программа завершена")
+		if err != nil {
+			loggerManager.LogError(err, "Error adding exit action")
+		}
+		loggerManager.Info("🛑 Программа завершена")
+	}()
+
 	loggerManager.Info("⏸️ Программа готова к работе")
 	loggerManager.Info("🔥 Горячие клавиши: Ctrl+Shift+1 для cycle_all_items, Ctrl+Shift+2 для cycle_listed_items, Q для прерывания")
 
@@ -248,6 +249,19 @@ func main() {
 		// Сбрасываем флаг прерывания при запуске нового скрипта
 		interruptManager.SetInterrupted(false)
 
+		// Проверяем текущий статус перед запуском скрипта
+		currentStatus, err := dbManager.GetCurrentStatus()
+		if err != nil {
+			loggerManager.LogError(err, "Ошибка получения текущего статуса")
+			continue
+		}
+
+		// Запускаем скрипт только если статус "stopped"
+		if currentStatus != "stopped" {
+			loggerManager.Info("⚠️ Скрипт не может быть запущен. Текущий статус: %s. Ожидаемый статус: stopped", currentStatus)
+			continue
+		}
+
 		// Определяем какой скрипт запускать по типу сигнала
 		scriptType := interruptManager.GetLastScriptType()
 
@@ -257,7 +271,7 @@ func main() {
 			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
 			// Обновляем статус на запуск скрипта
-			err = updateStatus(db, "cycle_all_items")
+			err = dbManager.UpdateStatus("cycle_all_items")
 			if err != nil {
 				loggerManager.LogError(err, "Error updating status to cycle_all_items")
 			}
@@ -275,7 +289,7 @@ func main() {
 				defer func() {
 					// При завершении (нормальном или прерывании) обновляем статус
 					if interruptManager.IsInterrupted() {
-						err = updateStatus(db, "stopped")
+						err = dbManager.UpdateStatus("stopped")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to stopped")
 						}
@@ -284,7 +298,7 @@ func main() {
 							loggerManager.LogError(err, "Error adding interruption action")
 						}
 					} else {
-						err = updateStatus(db, "ready")
+						err = dbManager.UpdateStatus("ready")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to ready")
 						}
@@ -309,7 +323,7 @@ func main() {
 			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
 			// Обновляем статус на запуск скрипта
-			err = updateStatus(db, "cycle_listed_items")
+			err = dbManager.UpdateStatus("cycle_listed_items")
 			if err != nil {
 				loggerManager.LogError(err, "Error updating status to cycle_listed_items")
 			}
@@ -327,7 +341,7 @@ func main() {
 				defer func() {
 					// При завершении (нормальном или прерывании) обновляем статус
 					if interruptManager.IsInterrupted() {
-						err = updateStatus(db, "stopped")
+						err = dbManager.UpdateStatus("stopped")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to stopped")
 						}
@@ -336,7 +350,7 @@ func main() {
 							loggerManager.LogError(err, "Error adding interruption action")
 						}
 					} else {
-						err = updateStatus(db, "ready")
+						err = dbManager.UpdateStatus("ready")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to ready")
 						}

@@ -161,11 +161,14 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 		coordinate := itemCoordinates[i]
 
 		// Проверяем сигнал прерывания в начале обработки каждого предмета
-		select {
-		case <-interruptManager.GetScriptInterruptChan():
-			loggerManager.Info("⏹️ Прерывание script1 по запросу пользователя")
+		interrupted, _, checkErr := checkInterruption(interruptManager, dbManager, loggerManager)
+		if checkErr != nil {
+			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
 			return fmt.Errorf("прерывание по запросу пользователя")
-		default:
+		}
+		if interrupted {
+			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
+			return fmt.Errorf("прерывание по запросу пользователя")
 		}
 
 		loggerManager.Info("📍 Обрабатываем предмет %d/%d в координатах: %v", i+1, len(itemCoordinates), coordinate)
@@ -281,11 +284,14 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 	loggerManager.Info("📋 Обрабатываем %d предметов категории %s", len(itemList), category)
 
 	for i, item := range itemList {
-		select {
-		case <-interruptManager.GetScriptInterruptChan():
+		interrupted, _, checkErr := checkInterruption(interruptManager, dbManager, loggerManager)
+		if checkErr != nil {
 			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
 			return fmt.Errorf("прерывание по запросу пользователя")
-		default:
+		}
+		if interrupted {
+			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
+			return fmt.Errorf("прерывание по запросу пользователя")
 		}
 
 		loggerManager.Info("🔍 Обрабатываем предмет %d/%d: %s (категория: %s)", i+1, len(itemList), item, category)
@@ -470,6 +476,58 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 	return nil
 }
 
+// checkForStopAction проверяет наличие действия "stop" в базе данных
+func checkForStopAction(dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager) (bool, int, error) {
+	action, actionID, err := dbManager.GetLatestUnexecutedAction()
+	if err != nil {
+		return false, 0, err
+	}
+
+	if action == "stop" {
+		loggerManager.Info("🛑 Обнаружено действие 'stop' в базе данных (ID: %d)", actionID)
+		return true, actionID, nil
+	}
+
+	return false, 0, nil
+}
+
+// checkInterruption проверяет прерывание как через горячие клавиши, так и через базу данных
+func checkInterruption(interruptManager *interrupt.InterruptManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager) (bool, int, error) {
+	// Проверяем прерывание через горячие клавиши
+	select {
+	case <-interruptManager.GetScriptInterruptChan():
+		loggerManager.Info("⏹️ Прерывание по горячим клавишам")
+		return true, 0, fmt.Errorf("прерывание по горячим клавишам")
+	default:
+	}
+
+	// Проверяем прерывание через базу данных
+	hasStopAction, actionID, err := checkForStopAction(dbManager, loggerManager)
+	if err != nil {
+		loggerManager.LogError(err, "Ошибка проверки действий в базе данных")
+		return false, 0, err
+	}
+
+	if hasStopAction {
+		// Помечаем действие как выполненное
+		err = dbManager.MarkActionAsExecuted(actionID)
+		if err != nil {
+			loggerManager.LogError(err, "Ошибка пометки действия как выполненного")
+		}
+
+		// Обновляем статус на stopped
+		err = dbManager.UpdateStatus("stopped")
+		if err != nil {
+			loggerManager.LogError(err, "Ошибка обновления статуса на stopped")
+		}
+
+		loggerManager.Info("⏹️ Прерывание по действию 'stop' из базы данных")
+		return true, actionID, fmt.Errorf("прерывание по действию 'stop' из базы данных")
+	}
+
+	return false, 0, nil
+}
+
 var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
 	// Инициализируем таблицу предметов
 	err := dbManager.InitializeItemsTable()
@@ -482,11 +540,14 @@ var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager
 	clickManager.FocusL2Window()
 
 	for cycles := 0; cycles < c.MaxCyclesItemsList; cycles++ {
-		select {
-		case <-interruptManager.GetScriptInterruptChan():
+		interrupted, _, checkErr := checkInterruption(interruptManager, dbManager, loggerManager)
+		if checkErr != nil {
 			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
 			return
-		default:
+		}
+		if interrupted {
+			loggerManager.Info("⏹️ Прерывание по запросу пользователя")
+			return
 		}
 
 		loggerManager.Info("🔄 Проход %d из %d", cycles+1, c.MaxCyclesItemsList)
