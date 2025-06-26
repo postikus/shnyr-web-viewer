@@ -7,6 +7,7 @@ import (
 	"os"
 	"shnyr/internal/config"
 	"shnyr/internal/logger"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -104,12 +105,35 @@ func (h *DatabaseManager) InitializeItemsTable(filename string) error {
 		id INT AUTO_INCREMENT PRIMARY KEY,
 		name VARCHAR(255) NOT NULL UNIQUE,
 		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
+		min_price DECIMAL(15,2) DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 
 	_, err := h.db.Exec(createTableSQL)
 	if err != nil {
 		return fmt.Errorf("ошибка создания таблицы предметов: %v", err)
+	}
+
+	// Проверяем, существует ли колонка min_price, если нет - добавляем
+	checkColumnSQL := `SELECT COUNT(*) FROM information_schema.columns 
+		WHERE table_schema = DATABASE() 
+		AND table_name = 'items_list' 
+		AND column_name = 'min_price'`
+
+	var columnExists int
+	err = h.db.QueryRow(checkColumnSQL).Scan(&columnExists)
+	if err != nil {
+		return fmt.Errorf("ошибка проверки существования колонки min_price: %v", err)
+	}
+
+	if columnExists == 0 {
+		// Добавляем колонку min_price
+		addColumnSQL := `ALTER TABLE items_list ADD COLUMN min_price DECIMAL(15,2) DEFAULT 0`
+		_, err = h.db.Exec(addColumnSQL)
+		if err != nil {
+			return fmt.Errorf("ошибка добавления колонки min_price: %v", err)
+		}
+		h.logger.Info("✅ Колонка 'min_price' добавлена в таблицу items_list")
 	}
 
 	// Очищаем таблицу перед загрузкой новых данных
@@ -154,7 +178,7 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 	defer tx.Rollback()
 
 	// Подготавливаем запрос
-	stmt, err := tx.Prepare("INSERT IGNORE INTO items_list (name, category) VALUES (?, ?)")
+	stmt, err := tx.Prepare("INSERT IGNORE INTO items_list (name, category, min_price) VALUES (?, ?, ?)")
 	if err != nil {
 		return fmt.Errorf("ошибка подготовки запроса: %v", err)
 	}
@@ -184,8 +208,12 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 			case "buy_consumables":
 				currentCategory = "buy_equipment"
 			case "buy_equipment":
+				// После buy_equipment переходим к sell_consumables
 				currentCategory = "sell_consumables"
 			case "sell_consumables":
+				currentCategory = "sell_equipment"
+			case "sell_equipment":
+				// Если уже в sell_equipment, остаемся там
 				currentCategory = "sell_equipment"
 			default:
 				// Если это первый разделитель, переходим к buy_equipment
@@ -194,15 +222,33 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 			h.logger.Info("📋 Переключаемся на категорию: %s", currentCategory)
 			continue
 		case "===":
+			// Принудительно переходим к sell_consumables
 			currentCategory = "sell_consumables"
 			h.logger.Info("📋 Переключаемся на категорию: %s", currentCategory)
 			continue
 		}
 
-		// Вставляем предмет с категорией
-		_, err := stmt.Exec(line, currentCategory)
+		// Парсим строку в формате "название:цена"
+		parts := strings.Split(line, ":")
+		itemName := strings.TrimSpace(parts[0])
+		var minPrice float64 = 0
+
+		if len(parts) > 1 {
+			priceStr := strings.TrimSpace(parts[1])
+			if priceStr != "" {
+				if price, err := strconv.ParseFloat(priceStr, 64); err == nil {
+					minPrice = price
+				} else {
+					h.logger.LogError(fmt.Errorf("ошибка парсинга цены '%s' для предмета '%s' на строке %d", priceStr, itemName, lineNumber), "")
+					// Продолжаем с ценой 0
+				}
+			}
+		}
+
+		// Вставляем предмет с категорией и минимальной ценой
+		_, err := stmt.Exec(itemName, currentCategory, minPrice)
 		if err != nil {
-			return fmt.Errorf("ошибка вставки предмета '%s' на строке %d: %v", line, lineNumber, err)
+			return fmt.Errorf("ошибка вставки предмета '%s' на строке %d: %v", itemName, lineNumber, err)
 		}
 
 		// Подсчитываем количество предметов по категориям

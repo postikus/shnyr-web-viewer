@@ -2,24 +2,30 @@
 # Каждый предмет на отдельной строке
 # Строки, начинающиеся с #, игнорируются
 # Разделители между категориями: ---, ===
+# Формат: название_предмета:минимальная_цена
 
-# Скупка (buy) - обрабатываются ПЕРВЫМИ
-# Consumables для скупки
-gold coin
-
----
-
-# Equipment для скупки
-Cyclic Cane
-vesper thrower
-===
-
-# Продажа (sell) - обрабатываются ВТОРЫМИ
+# Продажа (The list of goods for sale) - обрабатываются ПЕРВЫМИ
 # Consumables для продажи
-gold coin
-top grade 86
-bless enchant S-
+gold coin:1000
+top grade 86:50000
+bless enchant S-:100000
+ancient adena:1000
 
 ---
 
 # Equipment для продажи
+Cyclic Cane:10000
+Veniplant Sword:5000000
+===
+
+# Покупка (The list of goods for buy) - обрабатываются ВТОРЫМИ
+# Consumables для покупки
+gold coin:1000
+top grade 86:50000
+bless enchant S-:100000
+ancient adena:1000
+
+---
+
+# Equipment для покупки
+

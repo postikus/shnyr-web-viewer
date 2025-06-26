@@ -60,6 +60,7 @@ func main() {
 		id INT AUTO_INCREMENT PRIMARY KEY,
 		name VARCHAR(255) NOT NULL UNIQUE,
 		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
+		min_price DECIMAL(15,2) DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 	_, err = db2.Exec(itemsTableSQL)
@@ -78,7 +79,7 @@ func main() {
 		price VARCHAR(50) NOT NULL,
 		package BOOLEAN DEFAULT FALSE,
 		owner VARCHAR(255),
-		count VARCHAR(10),
+		count VARCHAR(100),
 		category VARCHAR(50),
 		item_list_id INT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
