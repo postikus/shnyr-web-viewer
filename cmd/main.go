@@ -114,7 +114,19 @@ func addAction(db *sql.DB, action string) error {
 
 // updateLatestPendingAction помечает последнее невыполненное действие как выполненное
 func updateLatestPendingAction(db *sql.DB) error {
-	_, err := db.Exec("UPDATE actions SET executed = TRUE WHERE id = (SELECT id FROM actions WHERE executed = FALSE ORDER BY created_at DESC LIMIT 1)")
+	// Сначала получаем ID последнего невыполненного действия
+	var actionID int
+	err := db.QueryRow("SELECT id FROM actions WHERE executed = FALSE ORDER BY created_at DESC LIMIT 1").Scan(&actionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Нет невыполненных действий
+			return nil
+		}
+		return err
+	}
+
+	// Затем обновляем это действие
+	_, err = db.Exec("UPDATE actions SET executed = TRUE WHERE id = ?", actionID)
 	return err
 }
 
