@@ -57,6 +57,14 @@ func SendTextToClipboard(port *serial.Port, text string) {
 	}
 }
 
+func SendF12ToArduino(port *serial.Port) {
+	message := "f12\n"
+	_, err := port.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error writing to Arduino:", err)
+	}
+}
+
 func SendCoordinatesToArduino(port *serial.Port, x, y int) {
 	message := fmt.Sprintf("click:%d,%d\n", x, y)
 	_, err := port.Write([]byte(message))

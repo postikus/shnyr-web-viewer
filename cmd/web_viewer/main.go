@@ -216,6 +216,20 @@ func updateStatus(db *sql.DB, status string) error {
 	return err
 }
 
+func updateLatestPendingAction(db *sql.DB) error {
+	action, err := getLatestPendingAction(db)
+	if err != nil {
+		return err
+	}
+	if action != nil {
+		err = updateActionExecuted(db, action.ID, true)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() {
 	// Получаем порт из переменной окружения
 	port := os.Getenv("PORT")
@@ -519,7 +533,13 @@ func main() {
 			return
 		}
 
-		err := addActionWithExecuted(db, "start", false)
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "start", false)
 		if err != nil {
 			log.Printf("Ошибка добавления действия start: %v", err)
 			http.Error(w, "Internal server error", 500)
@@ -543,7 +563,13 @@ func main() {
 			return
 		}
 
-		err := addActionWithExecuted(db, "stop", false)
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "stop", false)
 		if err != nil {
 			log.Printf("Ошибка добавления действия stop: %v", err)
 			http.Error(w, "Internal server error", 500)
@@ -567,7 +593,13 @@ func main() {
 			return
 		}
 
-		err := addActionWithExecuted(db, "restart", false)
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "restart", false)
 		if err != nil {
 			log.Printf("Ошибка добавления действия restart: %v", err)
 			http.Error(w, "Internal server error", 500)

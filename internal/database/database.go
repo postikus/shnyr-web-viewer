@@ -394,7 +394,7 @@ func (h *DatabaseManager) RecreateItemsTable() error {
 // GetCurrentStatus получает текущий статус из базы данных
 func (h *DatabaseManager) GetCurrentStatus() (string, error) {
 	var status string
-	err := h.db.QueryRow("SELECT current_status FROM status ORDER BY created_at DESC LIMIT 1").Scan(&status)
+	err := h.db.QueryRow("SELECT current_status FROM status ORDER BY updated_at DESC LIMIT 1").Scan(&status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "stopped", nil // По умолчанию считаем что система остановлена

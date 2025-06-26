@@ -228,9 +228,9 @@ body {
 	background: #fff;
 }
 .content {
-	padding: 30px;
-	margin-top: 170px;
-	margin-bottom: 100px;
+	padding: 20px;
+	margin-top: 80px;
+	margin-bottom: 80px;
 }
 table {
 	width: 100%;
@@ -684,7 +684,7 @@ tr:hover {
 	
 	.content {
 		padding: 20px;
-		margin-top: 120px;
+		margin-top: 80px;
 		margin-bottom: 80px;
 	}
 	
@@ -746,7 +746,7 @@ tr:hover {
 		max-width: 45px;
 	}
 	.content {
-		margin-top: 100px;
+		margin-top: 60px;
 		margin-bottom: 120px;
 		padding: 15px;
 	}
@@ -771,8 +771,8 @@ tr:hover {
 	}
 
 	.content {
-		margin-top: 150px;
-		margin-bottom: 140px;
+		margin-top: 60px;
+		margin-bottom: 100px;
 		padding: 10px;
 	}
 	

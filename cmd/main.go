@@ -20,6 +20,7 @@ import (
 	cycleListedItems "shnyr/internal/scripts/cycle_listed_items"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/tarm/serial"
@@ -109,6 +110,25 @@ func updateStatus(db *sql.DB, status string) error {
 func addAction(db *sql.DB, action string) error {
 	_, err := db.Exec("INSERT INTO actions (action) VALUES (?)", action)
 	return err
+}
+
+// updateLatestPendingAction помечает последнее невыполненное действие как выполненное
+func updateLatestPendingAction(db *sql.DB) error {
+	_, err := db.Exec("UPDATE actions SET executed = TRUE WHERE id = (SELECT id FROM actions WHERE executed = FALSE ORDER BY created_at DESC LIMIT 1)")
+	return err
+}
+
+// getLatestPendingAction возвращает последнее невыполненное действие
+func getLatestPendingAction(db *sql.DB) (string, error) {
+	var action string
+	err := db.QueryRow("SELECT action FROM actions WHERE executed = FALSE ORDER BY created_at DESC LIMIT 1").Scan(&action)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return action, nil
 }
 
 func main() {
@@ -245,6 +265,92 @@ func main() {
 	// запускаем мониторинг горячих клавиш
 	interruptManager.StartMonitoring()
 
+	// Запускаем горутину для периодической проверки невыполненных действий
+	go func() {
+		for {
+			// Проверяем каждые 5 секунд
+			time.Sleep(5 * time.Second)
+
+			// Проверяем, не запущен ли уже скрипт
+			if interruptManager.IsScriptRunning() {
+				continue
+			}
+
+			// Проверяем последнее невыполненное действие
+			latestPendingAction, err := getLatestPendingAction(db)
+			if err != nil {
+				loggerManager.LogError(err, "Ошибка получения последнего невыполненного действия")
+				continue
+			}
+
+			if latestPendingAction == "start" {
+				loggerManager.Info("🚀 Обнаружено невыполненное действие 'start', запускаем cycle_listed_items")
+
+				// Помечаем действие как выполненное
+				err = updateLatestPendingAction(db)
+				if err != nil {
+					loggerManager.LogError(err, "Ошибка обновления последнего действия")
+				}
+
+				// Запускаем cycle_listed_items
+				err = dbManager.UpdateStatus("cycle_listed_items")
+				if err != nil {
+					loggerManager.LogError(err, "Error updating status to cycle_listed_items")
+				}
+				err = addAction(db, "Запуск cycle_listed_items (автоматический)")
+				if err != nil {
+					loggerManager.LogError(err, "Error adding cycle_listed_items action")
+				}
+
+				// Канал для завершения cycle_listed_items
+				scriptDoneChan := make(chan bool, 1)
+				interruptManager.SetScriptRunning(true)
+
+				// Запускаем cycle_listed_items в отдельной горутине
+				go func() {
+					defer func() {
+						// При завершении (нормальном или прерывании) обновляем статус
+						if interruptManager.IsInterrupted() {
+							err = dbManager.UpdateStatus("stopped")
+							if err != nil {
+								loggerManager.LogError(err, "Error updating status to stopped")
+							}
+							err = updateLatestPendingAction(db)
+							if err != nil {
+								loggerManager.LogError(err, "Error updating latest pending action")
+							}
+							err = addAction(db, "cycle_listed_items прерван")
+							if err != nil {
+								loggerManager.LogError(err, "Error adding interruption action")
+							}
+						} else {
+							err = dbManager.UpdateStatus("ready")
+							if err != nil {
+								loggerManager.LogError(err, "Error updating status to ready")
+							}
+							err = updateLatestPendingAction(db)
+							if err != nil {
+								loggerManager.LogError(err, "Error updating latest pending action")
+							}
+							err = addAction(db, "cycle_listed_items завершен")
+							if err != nil {
+								loggerManager.LogError(err, "Error adding completion action")
+							}
+						}
+						scriptDoneChan <- true
+					}()
+
+					cycleListedItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
+				}()
+
+				// Ждем завершения cycle_listed_items
+				<-scriptDoneChan
+				interruptManager.SetScriptRunning(false)
+				loggerManager.Info("✅ cycle_listed_items завершен. Нажмите Ctrl+Shift+2 для повторного запуска")
+			}
+		}
+	}()
+
 	for range interruptManager.GetScriptStartChan() {
 		// Сбрасываем флаг прерывания при запуске нового скрипта
 		interruptManager.SetInterrupted(false)
@@ -256,9 +362,9 @@ func main() {
 			continue
 		}
 
-		// Запускаем скрипт только если статус "stopped"
-		if currentStatus != "stopped" {
-			loggerManager.Info("⚠️ Скрипт не может быть запущен. Текущий статус: %s. Ожидаемый статус: stopped", currentStatus)
+		// Запускаем скрипт только если статус "stopped", "ready" или "main"
+		if currentStatus != "stopped" && currentStatus != "ready" && currentStatus != "main" {
+			loggerManager.Info("⚠️ Скрипт не может быть запущен. Текущий статус: %s. Ожидаемый статус: stopped, ready или main", currentStatus)
 			continue
 		}
 
@@ -293,6 +399,10 @@ func main() {
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to stopped")
 						}
+						err = updateLatestPendingAction(db)
+						if err != nil {
+							loggerManager.LogError(err, "Error updating latest pending action")
+						}
 						err = addAction(db, "cycle_all_items прерван")
 						if err != nil {
 							loggerManager.LogError(err, "Error adding interruption action")
@@ -301,6 +411,10 @@ func main() {
 						err = dbManager.UpdateStatus("ready")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to ready")
+						}
+						err = updateLatestPendingAction(db)
+						if err != nil {
+							loggerManager.LogError(err, "Error updating latest pending action")
 						}
 						err = addAction(db, "cycle_all_items завершен")
 						if err != nil {
@@ -345,6 +459,10 @@ func main() {
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to stopped")
 						}
+						err = updateLatestPendingAction(db)
+						if err != nil {
+							loggerManager.LogError(err, "Error updating latest pending action")
+						}
 						err = addAction(db, "cycle_listed_items прерван")
 						if err != nil {
 							loggerManager.LogError(err, "Error adding interruption action")
@@ -353,6 +471,10 @@ func main() {
 						err = dbManager.UpdateStatus("ready")
 						if err != nil {
 							loggerManager.LogError(err, "Error updating status to ready")
+						}
+						err = updateLatestPendingAction(db)
+						if err != nil {
+							loggerManager.LogError(err, "Error updating latest pending action")
 						}
 						err = addAction(db, "cycle_listed_items завершен")
 						if err != nil {

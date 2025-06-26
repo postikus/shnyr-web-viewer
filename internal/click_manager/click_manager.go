@@ -76,6 +76,10 @@ func (m *ClickManager) Paste() {
 	arduino.Paste(m.config)
 }
 
+func (m *ClickManager) F12() {
+	arduino.F12(m.config)
+}
+
 // CopyToClipboard копирует текст в буфер обмена Windows
 func (m *ClickManager) CopyToClipboard(text string) {
 	// Windows API функции

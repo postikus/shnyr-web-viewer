@@ -88,6 +88,14 @@ var Paste = func(config *config.Config) {
 	}
 }
 
+var F12 = func(config *config.Config) {
+	SendF12ToArduino(config.PortObj)
+	_, err := waitForArduinoResponse("received", config.PortObj)
+	if err != nil {
+		return
+	}
+}
+
 var CopyToClipboard = func(config *config.Config, text string) {
 	SendTextToClipboard(config.PortObj, text)
 	_, err := waitForArduinoResponse("received", config.PortObj)
