@@ -40,6 +40,19 @@ type ItemsListItem struct {
 	CreatedAt     string
 }
 
+type Status struct {
+	ID            int
+	CurrentStatus string
+	UpdatedAt     string
+}
+
+type Action struct {
+	ID        int
+	Action    string
+	Executed  bool
+	CreatedAt string
+}
+
 type OCRResult struct {
 	ID        int
 	ImagePath string
@@ -72,6 +85,8 @@ type PageData struct {
 	CategoryBuyEquipment    bool
 	CategorySellConsumables bool
 	CategorySellEquipment   bool
+	Status                  Status
+	RecentActions           []Action
 }
 
 func getDatabaseDSN() string {
@@ -129,6 +144,76 @@ func getItemsList(db *sql.DB) ([]ItemsListItem, error) {
 	}
 
 	return items, nil
+}
+
+func getCurrentStatus(db *sql.DB) (Status, error) {
+	var status Status
+	err := db.QueryRow("SELECT id, current_status, updated_at FROM status ORDER BY id DESC LIMIT 1").Scan(&status.ID, &status.CurrentStatus, &status.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Если нет записей, возвращаем статус по умолчанию
+			return Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}, nil
+		}
+		return Status{}, fmt.Errorf("ошибка получения статуса: %v", err)
+	}
+	return status, nil
+}
+
+func getRecentActions(db *sql.DB, limit int) ([]Action, error) {
+	rows, err := db.Query("SELECT id, action, executed, created_at FROM actions ORDER BY created_at DESC LIMIT ?", limit)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка запроса действий: %v", err)
+	}
+	defer rows.Close()
+
+	var actions []Action
+	for rows.Next() {
+		var action Action
+		err := rows.Scan(&action.ID, &action.Action, &action.Executed, &action.CreatedAt)
+		if err != nil {
+			log.Printf("Ошибка сканирования actions: %v, пропускаем запись", err)
+			continue
+		}
+		actions = append(actions, action)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка итерации по actions: %v", err)
+	}
+
+	return actions, nil
+}
+
+func addAction(db *sql.DB, action string) error {
+	_, err := db.Exec("INSERT INTO actions (action) VALUES (?)", action)
+	return err
+}
+
+func addActionWithExecuted(db *sql.DB, action string, executed bool) error {
+	_, err := db.Exec("INSERT INTO actions (action, executed) VALUES (?, ?)", action, executed)
+	return err
+}
+
+func updateActionExecuted(db *sql.DB, actionID int, executed bool) error {
+	_, err := db.Exec("UPDATE actions SET executed = ? WHERE id = ?", executed, actionID)
+	return err
+}
+
+func getLatestPendingAction(db *sql.DB) (*Action, error) {
+	var action Action
+	err := db.QueryRow("SELECT id, action, executed, created_at FROM actions WHERE executed = FALSE ORDER BY created_at DESC LIMIT 1").Scan(&action.ID, &action.Action, &action.Executed, &action.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &action, nil
+}
+
+func updateStatus(db *sql.DB, status string) error {
+	_, err := db.Exec("INSERT INTO status (current_status) VALUES (?)", status)
+	return err
 }
 
 func main() {
@@ -245,6 +330,19 @@ func main() {
 
 		// Если активна вкладка поиска по предмету и есть результаты, показываем только их
 		if activeTab == "item_search" && itemSearch != "" {
+			// Получаем статус и действия
+			status, err := getCurrentStatus(db)
+			if err != nil {
+				log.Printf("Ошибка получения статуса: %v", err)
+				status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
+			}
+
+			recentActions, err := getRecentActions(db, 5)
+			if err != nil {
+				log.Printf("Ошибка получения действий: %v", err)
+				recentActions = []Action{}
+			}
+
 			// Подготавливаем данные для шаблона
 			pageData := PageData{
 				ActiveTab:               activeTab,
@@ -254,6 +352,8 @@ func main() {
 				CategoryBuyEquipment:    categoryBuyEquipment,
 				CategorySellConsumables: categorySellConsumables,
 				CategorySellEquipment:   categorySellEquipment,
+				Status:                  status,
+				RecentActions:           recentActions,
 			}
 
 			renderTemplate(w, pageData)
@@ -377,24 +477,111 @@ func main() {
 			results = append(results, res)
 		}
 
+		// Получаем статус и действия
+		status, err := getCurrentStatus(db)
+		if err != nil {
+			log.Printf("Ошибка получения статуса: %v", err)
+			status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
+		}
+
+		recentActions, err := getRecentActions(db, 5)
+		if err != nil {
+			log.Printf("Ошибка получения действий: %v", err)
+			recentActions = []Action{}
+		}
+
 		// Подготавливаем данные для шаблона
 		pageData := PageData{
-			Results:     results,
-			CurrentPage: page,
-			TotalPages:  totalPages,
-			TotalCount:  totalCount,
-			HasPrev:     page > 1,
-			HasNext:     page < totalPages,
-			PrevPage:    page - 1,
-			NextPage:    page + 1,
-			SearchQuery: searchQuery,
-			MinPrice:    minPrice,
-			MaxPrice:    maxPrice,
-			ActiveTab:   activeTab,
-			ItemsList:   itemsList,
+			Results:       results,
+			CurrentPage:   page,
+			TotalPages:    totalPages,
+			TotalCount:    totalCount,
+			HasPrev:       page > 1,
+			HasNext:       page < totalPages,
+			PrevPage:      page - 1,
+			NextPage:      page + 1,
+			SearchQuery:   searchQuery,
+			MinPrice:      minPrice,
+			MaxPrice:      maxPrice,
+			ActiveTab:     activeTab,
+			ItemsList:     itemsList,
+			Status:        status,
+			RecentActions: recentActions,
 		}
 
 		renderTemplate(w, pageData)
+	})
+
+	// Обработчик для кнопки Start
+	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		err := addActionWithExecuted(db, "start", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия start: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на start
+		err = updateStatus(db, "start")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Stop
+	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		err := addActionWithExecuted(db, "stop", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия stop: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на stop
+		err = updateStatus(db, "stop")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Restart
+	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		err := addActionWithExecuted(db, "restart", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия restart: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на restart
+		err = updateStatus(db, "restart")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
 	})
 
 	fmt.Printf("🚀 ШНЫРЬ v0.1 запущен на порту %s\n", port)
@@ -484,6 +671,34 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 				return "❓ Неизвестно"
 			default:
 				return category
+			}
+		},
+		"formatStatus": func(status string) string {
+			switch status {
+			case "stopped":
+				return "🔴 СТРАДАЕТ ХУЙНЕЙ"
+			case "main":
+				return "🟢 ОХОТА НА ЛОХА: Запуск приложения"
+			case "ready":
+				return "🟢 ОХОТА НА ЛОХА: Готов к работе"
+			case "cycle_all_items":
+				return "🟢 ОХОТА НА ЛОХА: cycle_all_items"
+			case "cycle_listed_items":
+				return "🟢 ОХОТА НА ЛОХА: cycle_listed_items"
+			case "running":
+				return "🟢 ОХОТА НА ЛОХА"
+			case "paused":
+				return "🟡 ОХОТА НА ЛОХА: Приостановлено"
+			case "error":
+				return "❌ ОХОТА НА ЛОХА: Ошибка"
+			case "unknown":
+				return "❓ ОХОТА НА ЛОХА: Неизвестно"
+			default:
+				// Если статус содержит название скрипта, форматируем его
+				if strings.Contains(status, "cycle_") || strings.Contains(status, "ocr_") || strings.Contains(status, "web_") {
+					return "🟢 ОХОТА НА ЛОХА: " + status
+				}
+				return "🟢 ОХОТА НА ЛОХА: " + status
 			}
 		},
 		"int": func(x float64) int { return int(x) },

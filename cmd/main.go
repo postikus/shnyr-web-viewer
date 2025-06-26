@@ -99,6 +99,18 @@ func getStartItemFromConsole() int {
 	}
 }
 
+// updateStatus обновляет статус в базе данных
+func updateStatus(db *sql.DB, status string) error {
+	_, err := db.Exec("INSERT INTO status (current_status) VALUES (?)", status)
+	return err
+}
+
+// addAction добавляет действие в базу данных
+func addAction(db *sql.DB, action string) error {
+	_, err := db.Exec("INSERT INTO actions (action) VALUES (?)", action)
+	return err
+}
+
 func main() {
 	// Парсим аргументы командной строки
 	startButtonPtr := flag.Int("start", 1, "Начальная кнопка (1-6)")
@@ -150,6 +162,19 @@ func main() {
 	}
 	defer db.Close()
 
+	// Обработка завершения программы
+	defer func() {
+		err = updateStatus(db, "stopped")
+		if err != nil {
+			loggerManager.LogError(err, "Error updating status to stopped on exit")
+		}
+		err = addAction(db, "Программа завершена")
+		if err != nil {
+			loggerManager.LogError(err, "Error adding exit action")
+		}
+		loggerManager.Info("🛑 Программа завершена")
+	}()
+
 	// Проверяем подключение к базе данных
 	err = db.Ping()
 	if err != nil {
@@ -157,6 +182,16 @@ func main() {
 		return
 	}
 	loggerManager.Info("✅ Успешное подключение к базе данных")
+
+	// Обновляем статус при запуске
+	err = updateStatus(db, "main")
+	if err != nil {
+		loggerManager.LogError(err, "Error updating status")
+	}
+	err = addAction(db, "Приложение запущено")
+	if err != nil {
+		loggerManager.LogError(err, "Error adding action")
+	}
 
 	// Устанавливаем базу данных в пакете screenshot
 	screenshot.SetDatabase(db)
@@ -196,10 +231,23 @@ func main() {
 	loggerManager.Info("⏸️ Программа готова к работе")
 	loggerManager.Info("🔥 Горячие клавиши: Ctrl+Shift+1 для cycle_all_items, Ctrl+Shift+2 для cycle_listed_items, Q для прерывания")
 
+	// Обновляем статус на "ready"
+	err = updateStatus(db, "ready")
+	if err != nil {
+		loggerManager.LogError(err, "Error updating status to ready")
+	}
+	err = addAction(db, "Программа готова к работе")
+	if err != nil {
+		loggerManager.LogError(err, "Error adding ready action")
+	}
+
 	// запускаем мониторинг горячих клавиш
 	interruptManager.StartMonitoring()
 
 	for range interruptManager.GetScriptStartChan() {
+		// Сбрасываем флаг прерывания при запуске нового скрипта
+		interruptManager.SetInterrupted(false)
+
 		// Определяем какой скрипт запускать по типу сигнала
 		scriptType := interruptManager.GetLastScriptType()
 
@@ -208,14 +256,47 @@ func main() {
 			loggerManager.Info("🚀 Запуск cycle_all_items...")
 			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
+			// Обновляем статус на запуск скрипта
+			err = updateStatus(db, "cycle_all_items")
+			if err != nil {
+				loggerManager.LogError(err, "Error updating status to cycle_all_items")
+			}
+			err = addAction(db, "Запуск cycle_all_items")
+			if err != nil {
+				loggerManager.LogError(err, "Error adding cycle_all_items action")
+			}
+
 			// Канал для завершения cycle_all_items
 			scriptDoneChan := make(chan bool, 1)
 			interruptManager.SetScriptRunning(true)
 
 			// Запускаем cycle_all_items в отдельной горутине
 			go func() {
+				defer func() {
+					// При завершении (нормальном или прерывании) обновляем статус
+					if interruptManager.IsInterrupted() {
+						err = updateStatus(db, "stopped")
+						if err != nil {
+							loggerManager.LogError(err, "Error updating status to stopped")
+						}
+						err = addAction(db, "cycle_all_items прерван")
+						if err != nil {
+							loggerManager.LogError(err, "Error adding interruption action")
+						}
+					} else {
+						err = updateStatus(db, "ready")
+						if err != nil {
+							loggerManager.LogError(err, "Error updating status to ready")
+						}
+						err = addAction(db, "cycle_all_items завершен")
+						if err != nil {
+							loggerManager.LogError(err, "Error adding completion action")
+						}
+					}
+					scriptDoneChan <- true
+				}()
+
 				cycleAllItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
-				scriptDoneChan <- true
 			}()
 
 			// Ждем завершения cycle_all_items
@@ -227,14 +308,47 @@ func main() {
 			loggerManager.Info("🚀 Запуск cycle_listed_items...")
 			loggerManager.Info("💡 Для прерывания нажмите Q (работает глобально)")
 
+			// Обновляем статус на запуск скрипта
+			err = updateStatus(db, "cycle_listed_items")
+			if err != nil {
+				loggerManager.LogError(err, "Error updating status to cycle_listed_items")
+			}
+			err = addAction(db, "Запуск cycle_listed_items")
+			if err != nil {
+				loggerManager.LogError(err, "Error adding cycle_listed_items action")
+			}
+
 			// Канал для завершения cycle_listed_items
 			scriptDoneChan := make(chan bool, 1)
 			interruptManager.SetScriptRunning(true)
 
 			// Запускаем cycle_listed_items в отдельной горутине
 			go func() {
+				defer func() {
+					// При завершении (нормальном или прерывании) обновляем статус
+					if interruptManager.IsInterrupted() {
+						err = updateStatus(db, "stopped")
+						if err != nil {
+							loggerManager.LogError(err, "Error updating status to stopped")
+						}
+						err = addAction(db, "cycle_listed_items прерван")
+						if err != nil {
+							loggerManager.LogError(err, "Error adding interruption action")
+						}
+					} else {
+						err = updateStatus(db, "ready")
+						if err != nil {
+							loggerManager.LogError(err, "Error updating status to ready")
+						}
+						err = addAction(db, "cycle_listed_items завершен")
+						if err != nil {
+							loggerManager.LogError(err, "Error adding completion action")
+						}
+					}
+					scriptDoneChan <- true
+				}()
+
 				cycleListedItems.Run(&c, screenshotManager, dbManager, ocrManager, clickManager, loggerManager, interruptManager)
-				scriptDoneChan <- true
 			}()
 
 			// Ждем завершения cycle_listed_items

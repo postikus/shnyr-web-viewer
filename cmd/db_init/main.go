@@ -108,6 +108,48 @@ func main() {
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы item_corrections:", err)
 	}
+	fmt.Println("Таблица item_corrections создана")
+
+	// Создаем таблицу для статуса ШНЫРЯ
+	_, err = db2.Exec(`
+		CREATE TABLE IF NOT EXISTS status (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			current_status VARCHAR(100) NOT NULL DEFAULT 'stopped',
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		log.Fatal("Ошибка создания таблицы status:", err)
+	}
+	fmt.Println("Таблица status создана")
+
+	// Вставляем начальный статус
+	_, err = db2.Exec("INSERT INTO status (current_status) VALUES ('stopped')")
+	if err != nil {
+		log.Fatal("Ошибка вставки начального статуса:", err)
+	}
+	fmt.Println("Начальный статус 'stopped' установлен")
+
+	// Создаем таблицу для действий ШНЫРЯ
+	_, err = db2.Exec(`
+		CREATE TABLE IF NOT EXISTS actions (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			action VARCHAR(255) NOT NULL,
+			executed BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		log.Fatal("Ошибка создания таблицы actions:", err)
+	}
+	fmt.Println("Таблица actions создана")
+
+	// Вставляем начальное действие
+	_, err = db2.Exec("INSERT INTO actions (action, executed) VALUES ('system_initialized', TRUE)")
+	if err != nil {
+		log.Fatal("Ошибка вставки начального действия:", err)
+	}
+	fmt.Println("Начальное действие 'system_initialized' добавлено")
 
 	fmt.Println("Инициализация базы завершена!")
 }

@@ -34,6 +34,101 @@ body {
 	flex-wrap: wrap;
 	gap: 20px;
 }
+.status-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	align-items: flex-end;
+}
+.status-info {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 14px;
+	color: #666;
+}
+.status-label {
+	font-weight: 600;
+	color: #333;
+}
+.status-value {
+	font-weight: 600;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+}
+.status-time {
+	color: #999;
+	font-size: 12px;
+}
+.control-buttons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.control-btn {
+	padding: 6px 12px;
+	border: none;
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	text-decoration: none;
+	display: inline-block;
+}
+.start-btn {
+	background: #28a745;
+	color: white;
+}
+.start-btn:hover {
+	background: #218838;
+	transform: translateY(-1px);
+}
+.stop-btn {
+	background: #dc3545;
+	color: white;
+}
+.stop-btn:hover {
+	background: #c82333;
+	transform: translateY(-1px);
+}
+.restart-btn {
+	background: #ffc107;
+	color: #212529;
+}
+.restart-btn:hover {
+	background: #e0a800;
+	transform: translateY(-1px);
+}
+.control-btn:active {
+	transform: translateY(0);
+}
+.recent-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 5px;
+}
+.actions-label {
+	font-size: 12px;
+	color: #666;
+	font-weight: 600;
+}
+.actions-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 11px;
+	color: #888;
+	max-width: 300px;
+	text-align: right;
+}
+.actions-list li {
+	margin-bottom: 2px;
+	line-height: 1.3;
+}
 .title-section h1 {
 	margin: 0;
 	font-size: 2.5em;
@@ -531,78 +626,90 @@ tr:hover {
 /* Мобильные устройства */
 @media (max-width: 768px) {
 	.header {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		padding: 10px 0 0 0;
+		padding: 15px 0 0 0;
+		position: relative;
+		background: #fff;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 		z-index: 1000;
+		border-bottom: 2px solid #eee;
 	}
 	
 	.header-content {
 		flex-direction: column;
-		padding: 0 15px 15px 15px;
-		gap: 10px;
+		align-items: stretch;
+		gap: 15px;
+		padding: 0 20px 15px 20px;
+	}
+	
+	.status-section {
+		align-items: flex-start;
+	}
+	
+	.control-buttons {
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	
+	.control-btn {
+		padding: 8px 12px;
+		font-size: 11px;
+	}
+	
+	.actions-list {
+		max-width: none;
+		text-align: left;
 	}
 	
 	.title-section h1 {
-		font-size: 1.8em;
-		text-align: center;
+		font-size: 2em;
 	}
 	
 	.search-container {
 		flex-direction: column;
-		width: 100%;
+		align-items: stretch;
 		gap: 10px;
 	}
 	
 	.search-input {
 		width: 100%;
-		font-size: 14px;
 	}
 	
 	.price-filter {
-		width: 100%;
-		justify-content: space-between;
+		justify-content: center;
 	}
 	
 	.price-input {
 		width: 80px;
-		font-size: 12px;
 	}
 	
 	.content {
-		margin-top: 250px;
-		padding: 15px;
-		overflow-x: auto;
+		padding: 20px;
+		margin-top: 200px;
+		margin-bottom: 80px;
 	}
 	
 	table {
-		min-width: 800px;
 		font-size: 12px;
 	}
 	
 	th, td {
-		padding: 8px 4px;
-		font-size: 11px;
+		padding: 8px;
 	}
 	
 	.screenshot-cell {
-		width: 40px;
+		width: 30px;
 	}
 	
 	.screenshot-thumb {
-		width: 33px;
-		height: 20px;
+		width: 25px;
+		height: 15px;
 	}
 	
 	.structured-data {
-		max-width: 300px;
-		overflow-x: auto;
+		max-width: 200px;
 	}
 	
 	.structured-table {
-		min-width: 600px;
 		font-size: 10px;
 	}
 	
@@ -614,14 +721,12 @@ tr:hover {
 	
 	.modal-content {
 		width: 95%;
-		margin: 5% auto;
-		padding: 15px;
-		max-height: 95vh;
+		max-height: 90vh;
+		margin: 5vh auto;
 	}
 	
 	.modal-section {
-		padding: 15px;
-		margin: 15px 0;
+		margin-bottom: 15px;
 	}
 	
 	.pagination {

@@ -12,6 +12,7 @@ type InterruptManager struct {
 	scriptInterruptChan chan bool
 	scriptStartChan     chan bool
 	isScriptRunning     *bool
+	isInterrupted       *bool
 	loggerManager       *logger.LoggerManager
 	lastScriptType      string
 }
@@ -19,10 +20,12 @@ type InterruptManager struct {
 // NewInterruptManager создает новый менеджер прерываний
 func NewInterruptManager(loggerManager *logger.LoggerManager) *InterruptManager {
 	isScriptRunning := false
+	isInterrupted := false
 	return &InterruptManager{
 		scriptInterruptChan: make(chan bool, 1),
 		scriptStartChan:     make(chan bool, 1),
 		isScriptRunning:     &isScriptRunning,
+		isInterrupted:       &isInterrupted,
 		loggerManager:       loggerManager,
 		lastScriptType:      "",
 	}
@@ -61,6 +64,16 @@ func (im *InterruptManager) GetLastScriptType() string {
 // SetLastScriptType устанавливает тип последнего запущенного скрипта
 func (im *InterruptManager) SetLastScriptType(scriptType string) {
 	im.lastScriptType = scriptType
+}
+
+// IsInterrupted возвращает состояние прерывания
+func (im *InterruptManager) IsInterrupted() bool {
+	return *im.isInterrupted
+}
+
+// SetInterrupted устанавливает состояние прерывания
+func (im *InterruptManager) SetInterrupted(interrupted bool) {
+	*im.isInterrupted = interrupted
 }
 
 // monitorHotkeys мониторит горячие клавиши
@@ -105,6 +118,7 @@ func (im *InterruptManager) monitorHotkeys() {
 		if event.Message == types.WM_KEYDOWN && (event.VKCode == types.VK_Q || event.VKCode == types.VK_CAPITAL) {
 			// Q всегда только прерывает скрипт, если он запущен
 			if im.isScriptRunning != nil && *im.isScriptRunning {
+				*im.isInterrupted = true
 				im.scriptInterruptChan <- true
 			}
 		}

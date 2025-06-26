@@ -422,4 +422,31 @@ function formatDateTime(dateTimeStr) {
 	const seconds = String(date.getSeconds()).padStart(2, '0');
 	
 	return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+}
+
+function sendAction(action) {
+	console.log('Отправляем действие:', action);
+	
+	fetch('/' + action, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		}
+	})
+	.then(response => {
+		if (response.ok) {
+			console.log('Действие', action, 'успешно отправлено');
+			// Обновляем страницу через 1 секунду, чтобы показать новый статус
+			setTimeout(() => {
+				window.location.reload();
+			}, 1000);
+		} else {
+			console.error('Ошибка при отправке действия:', response.status);
+			alert('Ошибка при отправке действия: ' + response.status);
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка сети:', error);
+		alert('Ошибка сети при отправке действия');
+	});
 } 

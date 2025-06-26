@@ -12,6 +12,20 @@
 			<div class="title-section">
 				<h1>👓 ШНЫРЬ v0.2</h1>
 			</div>
+			<div class="status-section">
+				<div class="status-info">
+					<span class="status-label">Статус:</span>
+					<span class="status-value">{{formatStatus .Status.CurrentStatus}}</span>
+					{{if .Status.UpdatedAt}}
+					<span class="status-time">({{formatDateTime .Status.UpdatedAt}})</span>
+					{{end}}
+				</div>
+				<div class="control-buttons">
+					<button class="control-btn start-btn" onclick="sendAction('start')">🚀 Start</button>
+					<button class="control-btn stop-btn" onclick="sendAction('stop')">🛑 Stop</button>
+					<button class="control-btn restart-btn" onclick="sendAction('restart')">🔄 Restart</button>
+				</div>
+			</div>
 		</div>
 		
 		<div class="tabs">
@@ -33,5 +47,43 @@
 {{template "modals.html" .}}
 
 <script src="/static/js/app.js"></script>
+<script>
+function sendAction(action) {
+	console.log('Отправляем действие:', action);
+	
+	fetch('/' + action, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		}
+	})
+	.then(response => {
+		if (response.ok) {
+			console.log('Действие', action, 'успешно отправлено');
+			// Обновляем страницу через 1 секунду, чтобы показать новый статус
+			setTimeout(() => {
+				window.location.reload();
+			}, 1000);
+		} else {
+			console.error('Ошибка при отправке действия:', response.status);
+			alert('Ошибка при отправке действия: ' + response.status);
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка сети:', error);
+		alert('Ошибка сети при отправке действия');
+	});
+}
+
+function formatStatus(status) {
+	if (status === 'stop') {
+		return 'СТРАДАЕТ ХУЙНЕЙ';
+	} else if (status === 'start' || status === 'restart') {
+		return 'ОХОТА НА ЛОХА';
+	} else {
+		return status || 'НЕИЗВЕСТНО';
+	}
+}
+</script>
 </body>
 </html> 
