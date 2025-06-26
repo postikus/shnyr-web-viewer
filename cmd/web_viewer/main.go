@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -10,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"encoding/base64"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -614,6 +614,41 @@ func main() {
 
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для получения статуса в формате JSON
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Получаем текущий статус
+		status, err := getCurrentStatus(db)
+		if err != nil {
+			log.Printf("Ошибка получения статуса: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Формируем JSON ответ
+		response := map[string]interface{}{
+			"status":    status.CurrentStatus,
+			"updatedAt": status.UpdatedAt,
+		}
+
+		// Кодируем в JSON
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Ошибка кодирования JSON: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
 	})
 
 	fmt.Printf("🚀 ШНЫРЬ v0.1 запущен на порту %s\n", port)

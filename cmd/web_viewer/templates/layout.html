@@ -15,10 +15,8 @@
 			<div class="status-section">
 				<div class="status-info">
 					<span class="status-label">Статус:</span>
-					<span class="status-value">{{formatStatus .Status.CurrentStatus}}</span>
-					{{if .Status.UpdatedAt}}
-					<span class="status-time">({{formatDateTime .Status.UpdatedAt}})</span>
-					{{end}}
+					<span class="status-value" id="status-value">{{formatStatus .Status.CurrentStatus}}</span>
+					<span class="status-time" id="status-time">{{if .Status.UpdatedAt}}({{formatDateTime .Status.UpdatedAt}}){{end}}</span>
 				</div>
 				<div class="control-buttons">
 					<button class="control-btn start-btn" onclick="sendAction('start')">🚀 Start</button>
@@ -60,9 +58,9 @@ function sendAction(action) {
 	.then(response => {
 		if (response.ok) {
 			console.log('Действие', action, 'успешно отправлено');
-			// Обновляем страницу через 1 секунду, чтобы показать новый статус
+			// Обновляем статус через 1 секунду, чтобы показать новый статус
 			setTimeout(() => {
-				window.location.reload();
+				updateStatus();
 			}, 1000);
 		} else {
 			console.error('Ошибка при отправке действия:', response.status);
@@ -84,6 +82,52 @@ function formatStatus(status) {
 		return status || 'НЕИЗВЕСТНО';
 	}
 }
+
+// Функция для обновления статуса
+function updateStatus() {
+	fetch('/status')
+		.then(response => {
+			if (response.ok) {
+				return response.json();
+			} else {
+				throw new Error('Ошибка получения статуса: ' + response.status);
+			}
+		})
+		.then(data => {
+			const statusElement = document.getElementById('status-value');
+			const timeElement = document.getElementById('status-time');
+			
+			if (statusElement) {
+				statusElement.textContent = formatStatus(data.status);
+			}
+			
+			if (timeElement && data.updatedAt) {
+				// Форматируем время (добавляем 8 часов для UTC+8)
+				const date = new Date(data.updatedAt);
+				date.setHours(date.getHours() + 8);
+				const formattedTime = date.toLocaleString('ru-RU', {
+					day: '2-digit',
+					month: '2-digit',
+					year: 'numeric',
+					hour: '2-digit',
+					minute: '2-digit',
+					second: '2-digit'
+				});
+				timeElement.textContent = `(${formattedTime})`;
+			}
+		})
+		.catch(error => {
+			console.error('Ошибка обновления статуса:', error);
+		});
+}
+
+// Запускаем обновление статуса каждые 2 секунды
+setInterval(updateStatus, 2000);
+
+// Обновляем статус сразу при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+	updateStatus();
+});
 </script>
 </body>
 </html> 
