@@ -229,8 +229,8 @@ body {
 }
 .content {
 	padding: 30px;
-	margin-top: 170px; /* Отступ для фиксированной шапки с вкладками */
-	margin-bottom: 100px; /* Отступ для фиксированной пагинации */
+	margin-top: 170px;
+	margin-bottom: 100px;
 }
 table {
 	width: 100%;
@@ -684,7 +684,7 @@ tr:hover {
 	
 	.content {
 		padding: 20px;
-		margin-top: 200px;
+		margin-top: 120px;
 		margin-bottom: 80px;
 	}
 	
@@ -746,7 +746,7 @@ tr:hover {
 		max-width: 45px;
 	}
 	.content {
-		margin-top: 170px;
+		margin-top: 100px;
 		margin-bottom: 120px;
 		padding: 15px;
 	}
@@ -771,7 +771,7 @@ tr:hover {
 	}
 
 	.content {
-		margin-top: 280px;
+		margin-top: 150px;
 		margin-bottom: 140px;
 		padding: 10px;
 	}
