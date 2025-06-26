@@ -7,7 +7,7 @@ import (
 )
 
 // SaveStructuredDataBatch сохраняет структурированные данные в базу данных
-func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error {
+func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string, itemCategory string) error {
 	if jsonData == "" {
 		return nil // Нет данных для сохранения
 	}
@@ -30,6 +30,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 		package BOOLEAN DEFAULT FALSE,
 		owner VARCHAR(255),
 		count VARCHAR(10),
+		category VARCHAR(50),
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id) ON DELETE CASCADE
 	)`
@@ -57,7 +58,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 	}()
 
 	// Подготавливаем запрос для batch вставки
-	insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	insertSQL := `INSERT INTO structured_items (ocr_result_id, title, title_short, enhancement, price, package, owner, count, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	stmt, err := tx.Prepare(insertSQL)
 	if err != nil {
 		return fmt.Errorf("ошибка подготовки запроса: %v", err)
@@ -73,7 +74,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 			enhancement = "0"
 		}
 
-		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count)
+		_, err = stmt.Exec(ocrResultID, item.Title, item.TitleShort, enhancement, item.Price, item.Package, item.Owner, item.Count, itemCategory)
 		if err != nil {
 			return fmt.Errorf("ошибка вставки структурированных данных: %v", err)
 		}
@@ -86,7 +87,7 @@ func SaveStructuredDataBatch(db *sql.DB, ocrResultID int, jsonData string) error
 		return fmt.Errorf("ошибка подтверждения транзакции: %v", err)
 	}
 
-	fmt.Printf("✅ Сохранено %d/%d структурированных элементов для OCR результата ID: %d\n",
-		processedCount, len(ocrResult.TextRecognition.StructuredData), ocrResultID)
+	fmt.Printf("✅ Сохранено %d/%d структурированных элементов для OCR результата ID: %d (категория: %s)\n",
+		processedCount, len(ocrResult.TextRecognition.StructuredData), ocrResultID, itemCategory)
 	return nil
 }

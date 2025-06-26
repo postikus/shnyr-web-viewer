@@ -25,6 +25,7 @@ type StructuredItem struct {
 	Package     bool
 	Owner       string
 	Count       string
+	Category    string
 	CreatedAt   string
 }
 
@@ -215,12 +216,12 @@ func main() {
 			}
 
 			// Загружаем структурированные данные для этого OCR результата
-			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
+			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
 			if err == nil {
 				defer itemRows.Close()
 				for itemRows.Next() {
 					var item StructuredItem
-					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.CreatedAt); err == nil {
+					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
 						res.Items = append(res.Items, item)
 					}
 				}
@@ -905,12 +906,12 @@ func main() {
 					<th>Created</th>
 				</tr>
 				{{range .Results}}
-				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-image-path="{{.ImagePath}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
+				<tr data-raw-text="{{jsEscape .RawText}}" data-id="{{.ID}}" data-image="{{base64encode .ImageData}}" data-image-path="{{.ImagePath}}" data-debug="{{jsEscape .DebugInfo}}" data-items="{{if .Items}}true{{else}}false{{end}}" data-structured-items='{{if .Items}}[{{range $index, $item := .Items}}{{if $index}},{{end}}{"title":"{{jsEscape $item.Title}}","titleShort":"{{jsEscape $item.TitleShort}}","enhancement":"{{jsEscape $item.Enhancement}}","price":"{{jsEscape $item.Price}}","package":{{$item.Package}},"owner":"{{jsEscape $item.Owner}}","count":"{{jsEscape $item.Count}}","category":"{{jsEscape $item.Category}}"}{{end}}]{{else}}[]{{end}}' onclick="openDetailModalFromData(this)" style="cursor: pointer;">
 				<td>
 					{{if .Items}}
 					<div class="structured-table">
 					<table>
-					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th></tr>
+					<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th><th>Category</th></tr>
 					{{range .Items}}
 					<tr class="cheapest-item-{{.Enhancement}}-{{.Price}}">
 					<td>{{.Title}}</td>
@@ -920,6 +921,7 @@ func main() {
 					<td>{{.Count}}</td>
 					<td>{{if .Package}}✔️{{end}}</td>
 					<td>{{.Owner}}</td>
+					<td>{{formatCategory .Category}}</td>
 					</tr>
 					{{end}}
 					</table>
@@ -1056,7 +1058,7 @@ func main() {
 					
 					let tableHTML = '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 1.1em;">📋 Структурированные данные:</h4>';
 					tableHTML += '<table class="modal-structured-table">';
-					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th></tr>';
+					tableHTML += '<tr><th>Title</th><th>Title Short</th><th>Enhancement</th><th>Price</th><th>Count</th><th>Package</th><th>Owner</th><th>Category</th></tr>';
 					
 					items.forEach(item => {
 						const isCheapest = cheapestItems.has(item);
@@ -1069,6 +1071,7 @@ func main() {
 						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '<td>' + formatCategory(item.category || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					
@@ -1202,7 +1205,7 @@ func main() {
 					});
 					
 					let tableHTML = '<table class="structured-table">';
-					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Количество</th><th>Пакет</th><th>Владелец</th></tr></thead>';
+					tableHTML += '<thead><tr><th>Название</th><th>Краткое название</th><th>Улучшение</th><th>Цена</th><th>Количество</th><th>Пакет</th><th>Владелец</th><th>Категория</th></tr></thead>';
 					tableHTML += '<tbody>';
 					
 					items.forEach(item => {
@@ -1216,6 +1219,7 @@ func main() {
 						tableHTML += '<td>' + (item.count || '') + '</td>';
 						tableHTML += '<td>' + (item.package ? '✔️' : '❌') + '</td>';
 						tableHTML += '<td>' + (item.owner || '') + '</td>';
+						tableHTML += '<td>' + formatCategory(item.category || '') + '</td>';
 						tableHTML += '</tr>';
 					});
 					
@@ -1273,6 +1277,26 @@ func main() {
 				return result;
 			}
 
+			// Функция для форматирования категории
+			function formatCategory(category) {
+				if (!category) return '';
+				
+				switch (category) {
+					case 'buy_consumables':
+						return '💰 Скупка (расходники)';
+					case 'buy_equipment':
+						return '💰 Скупка (экипировка)';
+					case 'sell_consumables':
+						return '💸 Продажа (расходники)';
+					case 'sell_equipment':
+						return '💸 Продажа (экипировка)';
+					case 'unknown':
+						return '❓ Неизвестно';
+					default:
+						return category;
+				}
+			}
+
 			// Функция для выделения самых дешевых предметов в главной таблице
 			function highlightCheapestItems() {
 				console.log('highlightCheapestItems called');
@@ -1288,7 +1312,7 @@ func main() {
 					// Группируем предметы по уровню улучшения и package
 					rows.forEach(function(row, rowIndex) {
 						const cells = row.querySelectorAll('td');
-						if (cells.length >= 6) {
+						if (cells.length >= 7) { // Обновлено для учета новой колонки категории
 							const enhancement = cells[2].textContent.trim();
 							const price = cells[3].textContent.trim();
 							const package = cells[5].textContent.trim();
@@ -1448,6 +1472,10 @@ func main() {
 					pages = append(pages, i)
 				}
 				return pages
+			},
+			"formatCategory": func(category string) string {
+				// Реализация функции formatCategory
+				return category
 			},
 		}).Parse(tmpl)
 		if err != nil {

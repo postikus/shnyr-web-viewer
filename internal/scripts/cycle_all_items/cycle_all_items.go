@@ -90,7 +90,7 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 	// сохраняем результат в базу
 	var imgBytes bytes.Buffer
 	png.Encode(&imgBytes, croppedFinalImg)
-	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c)
+	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, "unknown")
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка при сохранении результата в базу")
 		return err

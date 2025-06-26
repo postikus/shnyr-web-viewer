@@ -27,7 +27,7 @@ func NewDatabaseManager(db *sql.DB, loggerManager *logger.LoggerManager) *Databa
 }
 
 // SaveOCRResultToDB сохраняет результат OCR в базу данных
-func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config) (int, error) {
+func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugInfo, jsonData string, rawText string, imageData []byte, cfg *config.Config, itemCategory string) (int, error) {
 	// Проверяем настройку сохранения в БД
 	if cfg.SaveToDB != 1 {
 		h.logger.Info("Сохранение в БД отключено (save_to_db = %d)", cfg.SaveToDB)
@@ -74,7 +74,7 @@ func (h *DatabaseManager) SaveOCRResultToDB(imagePath, ocrResult string, debugIn
 		h.wg.Add(1)
 		go func(ocrID int, jsonStr string) {
 			defer h.wg.Done()
-			err := SaveStructuredDataBatch(h.db, ocrID, jsonStr)
+			err := SaveStructuredDataBatch(h.db, ocrID, jsonStr, itemCategory)
 			if err != nil {
 				h.logger.LogError(err, "Ошибка асинхронного сохранения структурированных данных")
 			} else {
@@ -259,7 +259,7 @@ func (h *DatabaseManager) GetItemsList() ([]string, error) {
 	return items, nil
 }
 
-// GetItemsByCategory возвращает список предметов по категории
+// GetItemsByCategory возвращает список предметов определенной категории
 func (h *DatabaseManager) GetItemsByCategory(category string) ([]string, error) {
 	rows, err := h.db.Query("SELECT name FROM items_list WHERE category = ? ORDER BY id", category)
 	if err != nil {
@@ -269,12 +269,11 @@ func (h *DatabaseManager) GetItemsByCategory(category string) ([]string, error) 
 
 	var items []string
 	for rows.Next() {
-		var itemName string
-		err := rows.Scan(&itemName)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка чтения предмета: %v", err)
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("ошибка сканирования предмета: %v", err)
 		}
-		items = append(items, itemName)
+		items = append(items, name)
 	}
 
 	if err := rows.Err(); err != nil {

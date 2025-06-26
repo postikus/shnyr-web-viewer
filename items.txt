@@ -6,14 +6,12 @@
 # Скупка (buy) - обрабатываются ПЕРВЫМИ
 # Consumables для скупки
 gold coin
-top grade 86
-bless enchant S-
 
 ---
 
 # Equipment для скупки
 Cyclic Cane
-
+vesper
 ===
 
 # Продажа (sell) - обрабатываются ВТОРЫМИ
