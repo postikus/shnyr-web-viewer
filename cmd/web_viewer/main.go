@@ -31,11 +31,13 @@ type StructuredItem struct {
 }
 
 type ItemsListItem struct {
-	ID        int
-	Name      string
-	Category  string
-	MinPrice  float64
-	CreatedAt string
+	ID            int
+	Name          string
+	Category      string
+	MinPrice      sql.NullFloat64
+	MinPriceValue float64
+	MinPriceValid bool
+	CreatedAt     string
 }
 
 type OCRResult struct {
@@ -112,9 +114,13 @@ func getItemsList(db *sql.DB) ([]ItemsListItem, error) {
 	var items []ItemsListItem
 	for rows.Next() {
 		var item ItemsListItem
-		if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.MinPrice, &item.CreatedAt); err != nil {
-			continue
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.MinPrice, &item.CreatedAt)
+		if err != nil {
+			log.Printf("Ошибка сканирования items_list: %v, пропускаем запись", err)
+			continue // Пропускаем проблемную запись
 		}
+		item.MinPriceValue = item.MinPrice.Float64
+		item.MinPriceValid = item.MinPrice.Valid
 		items = append(items, item)
 	}
 
@@ -416,7 +422,7 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 			return base64.StdEncoding.EncodeToString(data)
 		},
 		"jsEscape": func(s string) string {
-			return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
+			return strings.ReplaceAll(strings.ReplaceAll(s, `\\`, `\\\\`), `\"`, `\\\"`)
 		},
 		"formatDateTime": func(dateTimeStr string) string {
 			// Парсим время из строки
@@ -480,6 +486,7 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 				return category
 			}
 		},
+		"int": func(x float64) int { return int(x) },
 	}).ParseGlob(templatePath)
 
 	if err != nil {
