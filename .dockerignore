@@ -52,4 +52,8 @@ test/
 
 # Development files
 .env
-.env.local 
+.env.local
+
+# Keep templates and static files
+!cmd/web_viewer/templates/
+!cmd/web_viewer/static/ 

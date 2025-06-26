@@ -38,6 +38,10 @@ WORKDIR /app
 # Копируем собранное приложение
 COPY --from=builder /app/web_viewer .
 
+# Копируем шаблоны и статические файлы
+COPY --from=builder /app/cmd/web_viewer/templates ./templates
+COPY --from=builder /app/cmd/web_viewer/static ./static
+
 # Меняем владельца файлов
 RUN chown -R appuser:appgroup /app
 

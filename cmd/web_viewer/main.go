@@ -123,7 +123,13 @@ func main() {
 	log.Printf("Запускаем сервер на %s:%s", host, port)
 
 	// Настройка статических файлов
-	fs := http.FileServer(http.Dir("static"))
+	staticPath := "static"
+	if _, err := os.Stat("static"); os.IsNotExist(err) {
+		// Если нет, пробуем относительный путь
+		staticPath = "cmd/web_viewer/static"
+	}
+
+	fs := http.FileServer(http.Dir(staticPath))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -355,6 +361,15 @@ func main() {
 }
 
 func renderTemplate(w http.ResponseWriter, data PageData) {
+	// Определяем путь к шаблонам
+	templatePath := "templates/*.html"
+
+	// Проверяем, существует ли директория templates
+	if _, err := os.Stat("templates"); os.IsNotExist(err) {
+		// Если нет, пробуем относительный путь
+		templatePath = "cmd/web_viewer/templates/*.html"
+	}
+
 	// Загружаем все шаблоны
 	tmpl, err := template.New("layout").Funcs(template.FuncMap{
 		"base64encode": func(data []byte) string {
@@ -425,7 +440,7 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 				return category
 			}
 		},
-	}).ParseGlob("templates/*.html")
+	}).ParseGlob(templatePath)
 
 	if err != nil {
 		http.Error(w, "Template error: "+err.Error(), 500)
