@@ -1,19 +1,27 @@
 # Список предметов для поиска
 # Каждый предмет на отдельной строке
 # Строки, начинающиеся с #, игнорируются
+# Разделители между категориями: ---, ===
 
+# Скупка (buy) - обрабатываются ПЕРВЫМИ
+# Consumables для скупки
 gold coin
 top grade 86
 bless enchant S-
-ancient adena
-gemstone s
-vesper thrower
-Skull Carnium
-vesper stormer
-Devilish Maul
-Vesper Fighter
-Octo Claw
-Vesper Caster
-Rising Star
-Veniplant Sword
+
+---
+
+# Equipment для скупки
 Cyclic Cane
+
+===
+
+# Продажа (sell) - обрабатываются ВТОРЫМИ
+# Consumables для продажи
+gold coin
+top grade 86
+bless enchant S-
+
+---
+
+# Equipment для продажи

@@ -359,26 +359,32 @@ type ButtonStatus struct {
 	Button2Active bool
 	Button3Active bool
 	Button4Active bool
+	Button5Active bool
+	Button6Active bool
 }
 
 // CheckButtonActive проверяет активность кнопки
 func (h *ScreenshotManager) CheckButtonActive(buttonX, buttonY int, buttonName string, img image.Image) bool {
-	buttonRPx, _, _, _ := helpers.GetPixelColor(img, buttonX, 36)
+	buttonRPx, _, _, _ := helpers.GetPixelColor(img, buttonX, buttonY)
 	return buttonRPx == 86
 }
 
 // CheckAllButtonsStatus проверяет статус всех кнопок на изображении
-func (h *ScreenshotManager) CheckAllButtonsStatus(img image.Image, config *config.Config, marginX, marginY int) ButtonStatus {
+func (h *ScreenshotManager) CheckAllButtonsStatus(img image.Image, config *config.Config) ButtonStatus {
 	button1Active := h.CheckButtonActive(config.Click.Button1.X, config.ListButtonBottomYCoordinate, "listButton1", img)
 	button2Active := h.CheckButtonActive(config.Click.Button2.X, config.ListButtonBottomYCoordinate, "listButton2", img)
 	button3Active := h.CheckButtonActive(config.Click.Button3.X, config.ListButtonBottomYCoordinate, "listButton3", img)
 	button4Active := h.CheckButtonActive(config.Click.Button4.X, config.ListButtonBottomYCoordinate, "listButton4", img)
+	button5Active := h.CheckButtonActive(config.Click.Button5.X, config.ListButtonBottomYCoordinate, "listButton5", img)
+	button6Active := h.CheckButtonActive(config.Click.Button6.X, config.ListButtonBottomYCoordinate, "listButton6", img)
 
 	return ButtonStatus{
 		Button1Active: button1Active,
 		Button2Active: button2Active,
 		Button3Active: button3Active,
 		Button4Active: button4Active,
+		Button5Active: button5Active,
+		Button6Active: button6Active,
 	}
 }
 
@@ -410,7 +416,7 @@ func (h *ScreenshotManager) GetPageStatus(config *config.Config) PageStatus {
 		}
 	}
 
-	buttons := h.CheckAllButtonsStatus(img, config, h.marginX, h.marginY)
+	buttons := h.CheckAllButtonsStatus(img, config)
 	hasScroll := h.CheckScrollExists()
 	return PageStatus{
 		Buttons:   buttons,

@@ -98,11 +98,12 @@ func (h *DatabaseManager) WaitForAsyncOperations() {
 
 // InitializeItemsTable создает таблицу предметов и инициализирует её из файла
 func (h *DatabaseManager) InitializeItemsTable(filename string) error {
-	// Создаем таблицу предметов
+	// Создаем таблицу предметов с категориями
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS items_list (
 		id INT AUTO_INCREMENT PRIMARY KEY,
 		name VARCHAR(255) NOT NULL UNIQUE,
+		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 
@@ -153,25 +154,67 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 	defer tx.Rollback()
 
 	// Подготавливаем запрос
-	stmt, err := tx.Prepare("INSERT IGNORE INTO items_list (name) VALUES (?)")
+	stmt, err := tx.Prepare("INSERT IGNORE INTO items_list (name, category) VALUES (?, ?)")
 	if err != nil {
 		return fmt.Errorf("ошибка подготовки запроса: %v", err)
 	}
 	defer stmt.Close()
 
 	lineNumber := 0
+	currentCategory := "buy_consumables" // По умолчанию первая категория - скупка расходников
+	buyConsumablesCount := 0
+	buyEquipmentCount := 0
+	sellConsumablesCount := 0
+	sellEquipmentCount := 0
+
 	for scanner.Scan() {
 		lineNumber++
-		itemName := strings.TrimSpace(scanner.Text())
+		line := strings.TrimSpace(scanner.Text())
 
 		// Пропускаем пустые строки и комментарии
-		if itemName == "" || strings.HasPrefix(itemName, "#") {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
-		_, err := stmt.Exec(itemName)
+		// Проверяем разделители
+		switch line {
+		case "---":
+			// Определяем следующую категорию на основе текущей
+			switch currentCategory {
+			case "buy_consumables":
+				currentCategory = "buy_equipment"
+			case "buy_equipment":
+				currentCategory = "sell_consumables"
+			case "sell_consumables":
+				currentCategory = "sell_equipment"
+			default:
+				// Если это первый разделитель, переходим к buy_equipment
+				currentCategory = "buy_equipment"
+			}
+			h.logger.Info("📋 Переключаемся на категорию: %s", currentCategory)
+			continue
+		case "===":
+			currentCategory = "sell_consumables"
+			h.logger.Info("📋 Переключаемся на категорию: %s", currentCategory)
+			continue
+		}
+
+		// Вставляем предмет с категорией
+		_, err := stmt.Exec(line, currentCategory)
 		if err != nil {
-			return fmt.Errorf("ошибка вставки предмета '%s' на строке %d: %v", itemName, lineNumber, err)
+			return fmt.Errorf("ошибка вставки предмета '%s' на строке %d: %v", line, lineNumber, err)
+		}
+
+		// Подсчитываем количество предметов по категориям
+		switch currentCategory {
+		case "buy_consumables":
+			buyConsumablesCount++
+		case "buy_equipment":
+			buyEquipmentCount++
+		case "sell_consumables":
+			sellConsumablesCount++
+		case "sell_equipment":
+			sellEquipmentCount++
 		}
 	}
 
@@ -184,6 +227,9 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 	if err != nil {
 		return fmt.Errorf("ошибка подтверждения транзакции: %v", err)
 	}
+
+	h.logger.Info("📊 Загружено предметов: %d buy_consumables, %d buy_equipment, %d sell_consumables, %d sell_equipment",
+		buyConsumablesCount, buyEquipmentCount, sellConsumablesCount, sellEquipmentCount)
 
 	return nil
 }
@@ -211,4 +257,64 @@ func (h *DatabaseManager) GetItemsList() ([]string, error) {
 	}
 
 	return items, nil
+}
+
+// GetItemsByCategory возвращает список предметов по категории
+func (h *DatabaseManager) GetItemsByCategory(category string) ([]string, error) {
+	rows, err := h.db.Query("SELECT name FROM items_list WHERE category = ? ORDER BY id", category)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка запроса предметов категории %s: %v", category, err)
+	}
+	defer rows.Close()
+
+	var items []string
+	for rows.Next() {
+		var itemName string
+		err := rows.Scan(&itemName)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка чтения предмета: %v", err)
+		}
+		items = append(items, itemName)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка итерации по предметам: %v", err)
+	}
+
+	return items, nil
+}
+
+// GetItemsWithCategories возвращает список предметов с их категориями
+func (h *DatabaseManager) GetItemsWithCategories() (map[string][]string, error) {
+	rows, err := h.db.Query("SELECT name, category FROM items_list ORDER BY category, id")
+	if err != nil {
+		return nil, fmt.Errorf("ошибка запроса предметов с категориями: %v", err)
+	}
+	defer rows.Close()
+
+	itemsByCategory := make(map[string][]string)
+	for rows.Next() {
+		var itemName, category string
+		err := rows.Scan(&itemName, &category)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка чтения предмета: %v", err)
+		}
+		itemsByCategory[category] = append(itemsByCategory[category], itemName)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка итерации по предметам: %v", err)
+	}
+
+	return itemsByCategory, nil
+}
+
+// GetItemCategory возвращает категорию конкретного предмета
+func (h *DatabaseManager) GetItemCategory(itemName string) (string, error) {
+	var category string
+	err := h.db.QueryRow("SELECT category FROM items_list WHERE name = ?", itemName).Scan(&category)
+	if err != nil {
+		return "", fmt.Errorf("ошибка получения категории предмета '%s': %v", itemName, err)
+	}
+	return category, nil
 }
