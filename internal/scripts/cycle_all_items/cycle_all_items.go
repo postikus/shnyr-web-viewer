@@ -69,7 +69,7 @@ var processItemPage = func(c *config.Config,
 }
 
 // processButtonPage обрабатывает страницу с кнопкой (обработка изображения, OCR, сохранение в БД)
-func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager) error {
+func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, loggerManager *logger.LoggerManager, currentItem string, itemCategory string) error {
 	// получаем статус страницы
 	pageStatus := screenshotManager.GetPageStatus(c)
 
@@ -90,7 +90,7 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 	// сохраняем результат в базу
 	var imgBytes bytes.Buffer
 	png.Encode(&imgBytes, croppedFinalImg)
-	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, "unknown", "")
+	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, itemCategory, currentItem)
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка при сохранении результата в базу")
 		return err
@@ -149,7 +149,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 		pageStatus := screenshotManager.GetPageStatus(c)
 
 		// обрабатываем первую страницу предмета
-		err := processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager)
+		err := processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, "", "")
 		if err != nil {
 			loggerManager.LogError(err, "Ошибка при обработке первой страницы")
 			return err
@@ -160,7 +160,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 			clickManager.ClickCoordinates(image.Point{X: c.Click.Button2.X, Y: c.Click.Button2.Y})
 
 			// обрабатываем страницу кнопки 2
-			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager)
+			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, "", "")
 			if err != nil {
 				loggerManager.LogError(err, "Ошибка при обработке кнопки 2")
 				return err
@@ -174,7 +174,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 			clickManager.ClickCoordinates(image.Point{X: c.Click.Button3.X, Y: c.Click.Button3.Y})
 
 			// обрабатываем страницу кнопки 3
-			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager)
+			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, "", "")
 			if err != nil {
 				loggerManager.LogError(err, "Ошибка при обработке кнопки 3")
 				return err
@@ -188,7 +188,7 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 			clickManager.ClickCoordinates(image.Point{X: c.Click.Button4.X, Y: c.Click.Button4.Y})
 
 			// обрабатываем страницу кнопки 4
-			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager)
+			err = processItemPageWithButtonLogic(c, screenshotManager, ocrManager, dbManager, loggerManager, "", "")
 			if err != nil {
 				loggerManager.LogError(err, "Ошибка при обработке кнопки 4")
 				return err

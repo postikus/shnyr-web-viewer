@@ -93,16 +93,7 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 	var imgBytes bytes.Buffer
 	png.Encode(&imgBytes, croppedFinalImg)
 
-	// Используем переданную категорию вместо получения из БД
-	if itemCategory == "" {
-		// Получаем категорию текущего предмета только если она не передана
-		var err error
-		itemCategory, err = dbManager.GetItemCategory(currentItem)
-		if err != nil {
-			loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
-			itemCategory = "unknown" // Используем unknown если не удалось получить категорию
-		}
-	}
+	loggerManager.Info("💾 Сохраняем OCR результат для предмета '%s' с категорией '%s'", currentItem, itemCategory)
 
 	num, err := dbManager.SaveOCRResultToDB(savedImgPath, result, debugInfo, jsonData, rawText, imgBytes.Bytes(), c, itemCategory, currentItem)
 	if err != nil {
@@ -116,6 +107,8 @@ func processItemPageWithButtonLogic(c *config.Config, screenshotManager *screens
 
 // processItem обрабатывает отдельный предмет со всеми его кнопками
 func processItemListPage(c *config.Config, screenshotManager *screenshot.ScreenshotManager, ocrManager *ocr.OCRManager, dbManager *database.DatabaseManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager, isFirstCycle bool, currentItem string, itemCategory string) error {
+	loggerManager.Info("🎯 processItemListPage: предмет='%s', категория='%s', первый_цикл=%v", currentItem, itemCategory, isFirstCycle)
+
 	itemCoordinates, err := screenshotManager.GetItemListItemsCoordinates()
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка при поиске координат первой страницы")
@@ -140,17 +133,6 @@ func processItemListPage(c *config.Config, screenshotManager *screenshot.Screens
 		// Для последующих циклов начинаем с первого предмета
 		startIndex = 0
 		loggerManager.Info("📍 Последующий цикл: начинаем с первого предмета из %d", len(itemCoordinates))
-	}
-
-	// Проверяем категорию текущего предмета, если она не передана
-	if itemCategory == "" {
-		var err error
-		itemCategory, err = dbManager.GetItemCategory(currentItem)
-		if err != nil {
-			loggerManager.LogError(err, fmt.Sprintf("Ошибка получения категории предмета %s", currentItem))
-			// Если не удалось получить категорию, обрабатываем как equipment (с кнопками)
-			itemCategory = "buy_equipment"
-		}
 	}
 
 	// Определяем тип предмета на основе категории
@@ -289,6 +271,8 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 		return err
 	}
 
+	loggerManager.Info("🔍 DEBUG: GetItemsByCategory('%s') вернул %d предметов: %v", category, len(itemList), itemList)
+
 	if len(itemList) == 0 {
 		loggerManager.Info("📋 Нет предметов для категории %s", category)
 		return nil
@@ -304,7 +288,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 		default:
 		}
 
-		loggerManager.Info("🔍 Обрабатываем предмет %d/%d: %s", i+1, len(itemList), item)
+		loggerManager.Info("🔍 Обрабатываем предмет %d/%d: %s (категория: %s)", i+1, len(itemList), item, category)
 
 		// Копируем название предмета в буфер обмена
 		clickManager.CopyToClipboard(item)
@@ -488,7 +472,7 @@ func processItemsByCategory(c *config.Config, screenshotManager *screenshot.Scre
 
 var Run = func(c *config.Config, screenshotManager *screenshot.ScreenshotManager, dbManager *database.DatabaseManager, ocrManager *ocr.OCRManager, clickManager *click_manager.ClickManager, loggerManager *logger.LoggerManager, interruptManager *interrupt.InterruptManager) {
 	// Инициализируем таблицу предметов
-	err := dbManager.InitializeItemsTable("items.txt")
+	err := dbManager.InitializeItemsTable()
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка инициализации таблицы предметов")
 		return

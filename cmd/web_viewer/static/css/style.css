@@ -946,4 +946,75 @@ tr:hover {
 	.item-search-results {
 		padding: 15px;
 	}
+}
+
+/* Стили для таблицы items_list */
+.items-list-section {
+	margin: 30px 0;
+	padding: 20px;
+	background: #f8f9fa;
+	border-radius: 10px;
+	border: 1px solid #e9ecef;
+}
+
+.items-list-section h2 {
+	margin: 0 0 20px 0;
+	color: #111;
+	font-size: 1.5em;
+	font-weight: 600;
+}
+
+.items-list-table {
+	overflow-x: auto;
+}
+
+.items-list-table table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.items-list-table th {
+	background: #111;
+	color: #fff;
+	font-weight: 600;
+	padding: 12px 15px;
+	text-align: left;
+	font-size: 14px;
+}
+
+.items-list-table td {
+	padding: 12px 15px;
+	border-bottom: 1px solid #eee;
+	font-size: 14px;
+}
+
+.items-list-table tr:hover {
+	background: #f8f9fa;
+}
+
+.items-list-table tr:last-child td {
+	border-bottom: none;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+	.items-list-section {
+		margin: 20px 0;
+		padding: 15px;
+	}
+	
+	.items-list-section h2 {
+		font-size: 1.3em;
+		margin-bottom: 15px;
+	}
+	
+	.items-list-table th,
+	.items-list-table td {
+		padding: 8px 10px;
+		font-size: 13px;
+	}
 } 

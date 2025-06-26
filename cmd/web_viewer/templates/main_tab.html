@@ -13,6 +13,34 @@
 	</form>
 </div>
 
+<div class="items-list-section">
+	<h2>🎯 ШНЫРЬ ИЩЕТ</h2>
+	<div class="items-list-table">
+		<table>
+			<thead>
+				<tr>
+					<th>ID</th>
+					<th>Название предмета</th>
+					<th>Категория</th>
+					<th>Мин. цена</th>
+					<th>Добавлен</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{range .ItemsList}}
+				<tr>
+					<td>{{.ID}}</td>
+					<td>{{.Name}}</td>
+					<td>{{formatCategory .Category}}</td>
+					<td>{{if gt .MinPrice 0}}{{formatPrice (printf "%.2f" .MinPrice)}}{{else}}-{{end}}</td>
+					<td>{{formatDateTime .CreatedAt}}</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+</div>
+
 {{if .SearchQuery}}
 <div class="search-info">
 	🔍 Поиск: "{{.SearchQuery}}" | Найдено: {{.TotalCount}} записей

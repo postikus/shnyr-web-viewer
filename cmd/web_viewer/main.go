@@ -30,6 +30,14 @@ type StructuredItem struct {
 	CreatedAt   string
 }
 
+type ItemsListItem struct {
+	ID        int
+	Name      string
+	Category  string
+	MinPrice  float64
+	CreatedAt string
+}
+
 type OCRResult struct {
 	ID        int
 	ImagePath string
@@ -57,6 +65,7 @@ type PageData struct {
 	ActiveTab               string
 	ItemSearch              string
 	ItemResults             []StructuredItem
+	ItemsList               []ItemsListItem
 	CategoryBuyConsumables  bool
 	CategoryBuyEquipment    bool
 	CategorySellConsumables bool
@@ -91,6 +100,29 @@ func getDatabaseDSN() string {
 	}
 
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPassword, dbHost, dbPort, dbName)
+}
+
+func getItemsList(db *sql.DB) ([]ItemsListItem, error) {
+	rows, err := db.Query("SELECT id, name, category, min_price, created_at FROM items_list ORDER BY category, id")
+	if err != nil {
+		return nil, fmt.Errorf("ошибка запроса items_list: %v", err)
+	}
+	defer rows.Close()
+
+	var items []ItemsListItem
+	for rows.Next() {
+		var item ItemsListItem
+		if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.MinPrice, &item.CreatedAt); err != nil {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка итерации по items_list: %v", err)
+	}
+
+	return items, nil
 }
 
 func main() {
@@ -222,6 +254,13 @@ func main() {
 			return
 		}
 
+		// Получаем список предметов из items_list
+		itemsList, err := getItemsList(db)
+		if err != nil {
+			log.Printf("Ошибка получения items_list: %v", err)
+			itemsList = []ItemsListItem{} // Пустой список в случае ошибки
+		}
+
 		resultsPerPage := 10
 		offset := (page - 1) * resultsPerPage
 
@@ -277,7 +316,7 @@ func main() {
 		if searchQuery != "" || minPrice != "" || maxPrice != "" {
 			countArgs = args
 		}
-		err := db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		err = db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
 		if err != nil {
 			http.Error(w, "DB error", 500)
 			return
@@ -346,6 +385,7 @@ func main() {
 			MinPrice:    minPrice,
 			MaxPrice:    maxPrice,
 			ActiveTab:   activeTab,
+			ItemsList:   itemsList,
 		}
 
 		renderTemplate(w, pageData)

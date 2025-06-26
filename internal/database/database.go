@@ -98,65 +98,22 @@ func (h *DatabaseManager) WaitForAsyncOperations() {
 }
 
 // InitializeItemsTable создает таблицу предметов и инициализирует её из файла
-func (h *DatabaseManager) InitializeItemsTable(filename string) error {
-	// Создаем таблицу предметов с категориями
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS items_list (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		name VARCHAR(255) NOT NULL UNIQUE,
-		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
-		min_price DECIMAL(15,2) DEFAULT 0,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
+func (h *DatabaseManager) InitializeItemsTable() error {
+	h.logger.Info("🚀 Инициализация таблицы предметов...")
 
-	_, err := h.db.Exec(createTableSQL)
+	// Пересоздаем таблицу с новой структурой
+	err := h.RecreateItemsTable()
 	if err != nil {
-		return fmt.Errorf("ошибка создания таблицы предметов: %v", err)
+		return err
 	}
 
-	// Проверяем, существует ли колонка min_price, если нет - добавляем
-	checkColumnSQL := `SELECT COUNT(*) FROM information_schema.columns 
-		WHERE table_schema = DATABASE() 
-		AND table_name = 'items_list' 
-		AND column_name = 'min_price'`
-
-	var columnExists int
-	err = h.db.QueryRow(checkColumnSQL).Scan(&columnExists)
+	// Загружаем предметы из файла
+	err = h.loadItemsFromFile("items.txt")
 	if err != nil {
-		return fmt.Errorf("ошибка проверки существования колонки min_price: %v", err)
+		return err
 	}
 
-	if columnExists == 0 {
-		// Добавляем колонку min_price
-		addColumnSQL := `ALTER TABLE items_list ADD COLUMN min_price DECIMAL(15,2) DEFAULT 0`
-		_, err = h.db.Exec(addColumnSQL)
-		if err != nil {
-			return fmt.Errorf("ошибка добавления колонки min_price: %v", err)
-		}
-		h.logger.Info("✅ Колонка 'min_price' добавлена в таблицу items_list")
-	}
-
-	// Очищаем таблицу перед загрузкой новых данных
-	h.logger.Info("🧹 Очищаем таблицу предметов")
-	_, err = h.db.Exec("DELETE FROM items_list")
-	if err != nil {
-		return fmt.Errorf("ошибка очистки таблицы предметов: %v", err)
-	}
-
-	// Сбрасываем автоинкремент
-	_, err = h.db.Exec("ALTER TABLE items_list AUTO_INCREMENT = 1")
-	if err != nil {
-		return fmt.Errorf("ошибка сброса автоинкремента: %v", err)
-	}
-
-	// Загружаем данные из файла
-	h.logger.Info("📁 Загружаем предметы из файла: %s", filename)
-	err = h.loadItemsFromFile(filename)
-	if err != nil {
-		return fmt.Errorf("ошибка загрузки предметов из файла: %v", err)
-	}
-	h.logger.Info("✅ Предметы успешно загружены из файла")
-
+	h.logger.Info("✅ Таблица предметов инициализирована успешно")
 	return nil
 }
 
@@ -225,6 +182,7 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 			// Принудительно переходим к sell_consumables
 			currentCategory = "sell_consumables"
 			h.logger.Info("📋 Переключаемся на категорию: %s", currentCategory)
+			h.logger.Info("🔍 DEBUG: Найдем разделитель ===, переключаемся на sell_consumables")
 			continue
 		}
 
@@ -251,6 +209,11 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 			return fmt.Errorf("ошибка вставки предмета '%s' на строке %d: %v", itemName, lineNumber, err)
 		}
 
+		// Отладочное логирование для sell_consumables
+		if currentCategory == "sell_consumables" {
+			h.logger.Info("🔍 DEBUG: Вставляем предмет '%s' с категорией '%s' и ценой %.2f", itemName, currentCategory, minPrice)
+		}
+
 		// Подсчитываем количество предметов по категориям
 		switch currentCategory {
 		case "buy_consumables":
@@ -273,6 +236,8 @@ func (h *DatabaseManager) loadItemsFromFile(filename string) error {
 	if err != nil {
 		return fmt.Errorf("ошибка подтверждения транзакции: %v", err)
 	}
+
+	h.logger.Info("🔍 DEBUG: Транзакция подтверждена успешно")
 
 	h.logger.Info("📊 Загружено предметов: %d buy_consumables, %d buy_equipment, %d sell_consumables, %d sell_equipment",
 		buyConsumablesCount, buyEquipmentCount, sellConsumablesCount, sellEquipmentCount)
@@ -372,4 +337,56 @@ func (h *DatabaseManager) GetItemCategory(itemName string) (string, error) {
 		return "", fmt.Errorf("ошибка получения категории предмета '%s': %v", itemName, err)
 	}
 	return category, nil
+}
+
+func (h *DatabaseManager) RecreateItemsTable() error {
+	h.logger.Info("🔄 Пересоздаем таблицу items_list...")
+
+	// Удаляем внешний ключ, если он есть
+	_, err := h.db.Exec("ALTER TABLE structured_items DROP FOREIGN KEY structured_items_ibfk_2")
+	if err != nil {
+		h.logger.Info("⚠️ Не удалось удалить внешний ключ structured_items_ibfk_2: %v", err)
+	}
+
+	// Удаляем существующую таблицу
+	_, err = h.db.Exec("DROP TABLE IF EXISTS items_list")
+	if err != nil {
+		return fmt.Errorf("ошибка удаления таблицы items_list: %v", err)
+	}
+
+	// Создаем таблицу заново
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS items_list (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		category VARCHAR(50) NOT NULL DEFAULT 'consumables',
+		min_price DECIMAL(15,2) DEFAULT 0,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE KEY unique_item_category (name, category)
+	)`
+
+	_, err = h.db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("ошибка создания таблицы items_list: %v", err)
+	}
+
+	// Очищаем ссылки на items_list в structured_items
+	_, err = h.db.Exec("UPDATE structured_items SET item_list_id = NULL")
+	if err != nil {
+		return fmt.Errorf("ошибка очистки ссылок в structured_items: %v", err)
+	}
+
+	// Восстанавливаем внешний ключ
+	_, err = h.db.Exec(`
+		ALTER TABLE structured_items
+		ADD CONSTRAINT structured_items_ibfk_2
+		FOREIGN KEY (item_list_id) REFERENCES items_list(id)
+		ON DELETE SET NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("ошибка добавления внешнего ключа: %v", err)
+	}
+
+	h.logger.Info("✅ Таблица items_list пересоздана успешно")
+	return nil
 }
