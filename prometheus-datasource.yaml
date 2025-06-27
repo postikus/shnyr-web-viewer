@@ -4,15 +4,6 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: server
-    url: http://localhost:8080
+    url: https://shnyr-web-viewer.onrender.com
     isDefault: true
-    editable: true
-    jsonData:
-      httpMethod: GET
-      manageAlerts: false
-      prometheusType: Prometheus
-      prometheusVersion: 2.0.0
-      cacheLevel: 'High'
-      disableRecordingRules: false
-      incrementalQueryOverlapWindow: 10m
-    secureJsonData: {} 
+    editable: true 

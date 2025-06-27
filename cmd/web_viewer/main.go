@@ -508,6 +508,17 @@ func main() {
 
 	// Prometheus API endpoints для совместимости с Grafana
 	http.HandleFunc("/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+		// Добавляем CORS заголовки
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		// Обрабатываем preflight запросы
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		log.Printf("API: /api/v1/query called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
 
 		if r.Method != "GET" {
