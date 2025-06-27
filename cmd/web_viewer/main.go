@@ -503,65 +503,6 @@ func main() {
 		promhttp.Handler().ServeHTTP(w, r)
 	})
 
-	// JSON endpoint для метрик - совместимый с Grafana
-	http.HandleFunc("/metrics/json", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /metrics/json called - %s %s", r.Method, r.URL.Path)
-
-		// Обновляем метрики из базы данных
-		updateGoldCoinMetrics(db)
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Формируем JSON ответ с метриками
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"resultType": "vector",
-				"result": []interface{}{
-					map[string]interface{}{
-						"metric": map[string]string{
-							"__name__": "gold_coin_avg_min_3_prices",
-							"category": "buy_consumables",
-						},
-						"value": []interface{}{time.Now().Unix(), 0.0},
-					},
-					map[string]interface{}{
-						"metric": map[string]string{
-							"__name__": "gold_coin_min_price",
-							"category": "buy_consumables",
-						},
-						"value": []interface{}{time.Now().Unix(), 0.0},
-					},
-					map[string]interface{}{
-						"metric": map[string]string{
-							"__name__": "gold_coin_max_price_of_min_3",
-							"category": "buy_consumables",
-						},
-						"value": []interface{}{time.Now().Unix(), 0.0},
-					},
-					map[string]interface{}{
-						"metric": map[string]string{
-							"__name__": "gold_coin_prices_count",
-							"category": "buy_consumables",
-						},
-						"value": []interface{}{time.Now().Unix(), 0.0},
-					},
-				},
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /metrics/json - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /metrics/json - Success, returned 4 metrics")
-		w.Write(jsonData)
-	})
-
 	// Также оставляем точный путь /metrics для совместимости
 	http.Handle("/metrics", promhttp.Handler())
 
