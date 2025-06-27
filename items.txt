@@ -14,8 +14,6 @@ ancient adena:1000
 ---
 
 # Equipment для продажи
-Cyclic Cane:10000
-Veniplant Sword:5000000
 ===
 
 # Продавай! (The list of goods for buy) - обрабатываются ВТОРЫМИ

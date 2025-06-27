@@ -1,25 +1,29 @@
 services:
   - type: web
     name: shnyr-web-viewer
-    env: docker
+    env: go
     plan: free
-    buildCommand: docker build -t shnyr-web-viewer .
-    startCommand: docker run -p $PORT:8080 shnyr-web-viewer
+    buildCommand: go build -o main cmd/web_viewer/main.go
+    startCommand: ./main
     envVars:
       - key: PORT
         value: 8080
       - key: HOST
         value: 0.0.0.0
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        sync: false
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_NAME
-        sync: false
+      - key: DATABASE_URL
+        value: root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true
     healthCheckPath: /
     autoDeploy: true
-    dockerfilePath: ./Dockerfile 
+
+  - type: web
+    name: grafana-dashboard
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.grafana
+    envVars:
+      - key: GF_SECURITY_ADMIN_PASSWORD
+        value: admin123
+      - key: GF_INSTALL_PLUGINS
+        value: grafana-piechart-panel
+    healthCheckPath: /api/health
+    autoDeploy: true 

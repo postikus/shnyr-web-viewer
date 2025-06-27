@@ -14,7 +14,138 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// Prometheus метрики для отслеживания цен gold coin
+var (
+	goldCoinAvgPrice = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_avg_min_3_prices",
+			Help: "Среднее из 3 минимальных цен для gold coin",
+		},
+		[]string{"category"},
+	)
+
+	goldCoinMinPrice = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_min_price",
+			Help: "Минимальная цена для gold coin",
+		},
+		[]string{"category"},
+	)
+
+	goldCoinMaxPrice = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_max_price_of_min_3",
+			Help: "Максимальная из 3 минимальных цен для gold coin",
+		},
+		[]string{"category"},
+	)
+
+	goldCoinPriceCount = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_prices_count",
+			Help: "Количество цен для gold coin",
+		},
+		[]string{"category"},
+	)
+)
+
+func init() {
+	// Регистрируем метрики
+	prometheus.MustRegister(goldCoinAvgPrice)
+	prometheus.MustRegister(goldCoinMinPrice)
+	prometheus.MustRegister(goldCoinMaxPrice)
+	prometheus.MustRegister(goldCoinPriceCount)
+}
+
+// updateGoldCoinMetrics обновляет метрики для gold coin
+func updateGoldCoinMetrics(db *sql.DB) {
+	query := `
+	WITH gold_coin_ocr AS (
+		SELECT DISTINCT ocr.id as ocr_id
+		FROM octopus.ocr_results ocr
+		INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
+		WHERE si.title = 'gold coin' 
+		  AND si.category = 'buy_consumables'
+	),
+	price_analysis AS (
+		SELECT 
+			gco.ocr_id,
+			si.id as structured_item_id,
+			si.title,
+			si.category,
+			si.price,
+			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
+		FROM gold_coin_ocr gco
+		INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
+		WHERE si.price IS NOT NULL 
+		  AND si.price != ''
+		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
+	),
+	top_3_prices AS (
+		SELECT 
+			ocr_id,
+			title,
+			category,
+			price,
+			price_numeric,
+			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
+		FROM price_analysis
+	),
+	avg_min_3_prices AS (
+		SELECT 
+			ocr_id,
+			title,
+			category,
+			COUNT(*) as prices_count,
+			AVG(price_numeric) as avg_min_3_prices,
+			MIN(price_numeric) as min_price,
+			MAX(price_numeric) as max_price_of_min_3
+		FROM top_3_prices
+		WHERE price_rank <= 3
+		GROUP BY ocr_id, title, category
+	)
+	SELECT 
+		category,
+		COUNT(*) as total_records,
+		AVG(avg_min_3_prices) as avg_price,
+		MIN(min_price) as min_price,
+		MAX(max_price_of_min_3) as max_price,
+		SUM(prices_count) as total_prices
+	FROM avg_min_3_prices
+	GROUP BY category
+	ORDER BY category
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Ошибка получения метрик gold coin: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var category string
+		var totalRecords int
+		var avgPrice, minPrice, maxPrice float64
+		var totalPrices int
+
+		err := rows.Scan(&category, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
+		if err != nil {
+			log.Printf("Ошибка сканирования метрик: %v", err)
+			continue
+		}
+
+		// Обновляем метрики
+		goldCoinAvgPrice.WithLabelValues(category).Set(avgPrice)
+		goldCoinMinPrice.WithLabelValues(category).Set(minPrice)
+		goldCoinMaxPrice.WithLabelValues(category).Set(maxPrice)
+		goldCoinPriceCount.WithLabelValues(category).Set(float64(totalPrices))
+	}
+}
 
 type StructuredItem struct {
 	ID          int
@@ -650,6 +781,17 @@ func main() {
 
 		w.Write(jsonData)
 	})
+
+	// Endpoint для Prometheus метрик
+	http.Handle("/metrics", promhttp.Handler())
+
+	// Запускаем периодическое обновление метрик
+	go func() {
+		for {
+			updateGoldCoinMetrics(db)
+			time.Sleep(30 * time.Second) // Обновляем каждые 30 секунд
+		}
+	}()
 
 	fmt.Printf("🚀 ШНЫРЬ v0.1 запущен на порту %s\n", port)
 	fmt.Printf("📊 База данных: %s\n", dbDSN)

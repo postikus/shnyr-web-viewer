@@ -1,0 +1,22 @@
+FROM grafana/grafana:latest
+
+# Копируем конфигурацию дашборда
+COPY grafana-dashboard.json /etc/grafana/provisioning/dashboards/gold-coin-dashboard.json
+
+# Создаем конфигурацию для автоматической загрузки дашборда
+RUN mkdir -p /etc/grafana/provisioning/dashboards
+COPY grafana-dashboard.json /etc/grafana/provisioning/dashboards/
+
+# Создаем конфигурацию источника данных для Prometheus
+RUN mkdir -p /etc/grafana/provisioning/datasources
+COPY prometheus-datasource.yaml /etc/grafana/provisioning/datasources/
+
+# Устанавливаем переменные окружения
+ENV GF_SECURITY_ADMIN_PASSWORD=admin123
+ENV GF_INSTALL_PLUGINS=grafana-piechart-panel
+
+# Открываем порт
+EXPOSE 3000
+
+# Запускаем Grafana
+CMD ["grafana-server", "--config=/etc/grafana/grafana.ini"] 
