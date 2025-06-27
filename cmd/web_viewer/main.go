@@ -499,7 +499,67 @@ func main() {
 
 	// Endpoint для Prometheus метрик - обрабатывает все пути начинающиеся с /metrics/
 	http.HandleFunc("/metrics/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /metrics/ called - %s %s", r.Method, r.URL.Path)
 		promhttp.Handler().ServeHTTP(w, r)
+	})
+
+	// JSON endpoint для метрик - совместимый с Grafana
+	http.HandleFunc("/metrics/json", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /metrics/json called - %s %s", r.Method, r.URL.Path)
+
+		// Обновляем метрики из базы данных
+		updateGoldCoinMetrics(db)
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Формируем JSON ответ с метриками
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"resultType": "vector",
+				"result": []interface{}{
+					map[string]interface{}{
+						"metric": map[string]string{
+							"__name__": "gold_coin_avg_min_3_prices",
+							"category": "buy_consumables",
+						},
+						"value": []interface{}{time.Now().Unix(), 0.0},
+					},
+					map[string]interface{}{
+						"metric": map[string]string{
+							"__name__": "gold_coin_min_price",
+							"category": "buy_consumables",
+						},
+						"value": []interface{}{time.Now().Unix(), 0.0},
+					},
+					map[string]interface{}{
+						"metric": map[string]string{
+							"__name__": "gold_coin_max_price_of_min_3",
+							"category": "buy_consumables",
+						},
+						"value": []interface{}{time.Now().Unix(), 0.0},
+					},
+					map[string]interface{}{
+						"metric": map[string]string{
+							"__name__": "gold_coin_prices_count",
+							"category": "buy_consumables",
+						},
+						"value": []interface{}{time.Now().Unix(), 0.0},
+					},
+				},
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("API: /metrics/json - JSON marshal error: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		log.Printf("API: /metrics/json - Success, returned 4 metrics")
+		w.Write(jsonData)
 	})
 
 	// Также оставляем точный путь /metrics для совместимости
@@ -507,16 +567,22 @@ func main() {
 
 	// Prometheus API endpoints для совместимости с Grafana
 	http.HandleFunc("/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/query called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/query - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
 		query := r.URL.Query().Get("query")
 		if query == "" {
+			log.Printf("API: /api/v1/query - Missing query parameter")
 			http.Error(w, "Missing query parameter", 400)
 			return
 		}
+
+		log.Printf("API: /api/v1/query - Processing query: %s", query)
 
 		// Устанавливаем заголовки для JSON
 		w.Header().Set("Content-Type", "application/json")
@@ -524,9 +590,12 @@ func main() {
 		// Парсим запрос
 		metricName, _, err := parsePromQL(query)
 		if err != nil {
+			log.Printf("API: /api/v1/query - Invalid query: %s, error: %v", query, err)
 			http.Error(w, "Invalid query", 400)
 			return
 		}
+
+		log.Printf("API: /api/v1/query - Parsed metric: %s", metricName)
 
 		// Обновляем метрики из базы данных
 		updateGoldCoinMetrics(db)
@@ -576,6 +645,7 @@ func main() {
 				},
 			}
 		default:
+			log.Printf("API: /api/v1/query - Unknown metric: %s", metricName)
 			result = []interface{}{}
 		}
 
@@ -589,24 +659,32 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/query - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/query - Success, returned %d results", len(result))
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/query_range called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/query_range - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
 		query := r.URL.Query().Get("query")
 		if query == "" {
+			log.Printf("API: /api/v1/query_range - Missing query parameter")
 			http.Error(w, "Missing query parameter", 400)
 			return
 		}
+
+		log.Printf("API: /api/v1/query_range - Processing query: %s", query)
 
 		// Устанавливаем заголовки для JSON
 		w.Header().Set("Content-Type", "application/json")
@@ -614,9 +692,12 @@ func main() {
 		// Парсим запрос
 		metricName, _, err := parsePromQL(query)
 		if err != nil {
+			log.Printf("API: /api/v1/query_range - Invalid query: %s, error: %v", query, err)
 			http.Error(w, "Invalid query", 400)
 			return
 		}
+
+		log.Printf("API: /api/v1/query_range - Parsed metric: %s", metricName)
 
 		// Обновляем метрики из базы данных
 		updateGoldCoinMetrics(db)
@@ -678,6 +759,7 @@ func main() {
 				},
 			}
 		default:
+			log.Printf("API: /api/v1/query_range - Unknown metric: %s", metricName)
 			result = []interface{}{}
 		}
 
@@ -691,15 +773,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/query_range - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/query_range - Success, returned %d results", len(result))
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/label/__name__/values", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/label/__name__/values called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/label/__name__/values - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -720,15 +807,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/label/__name__/values - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/label/__name__/values - Success, returned 4 metrics")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/labels called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/labels - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -747,15 +839,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/labels - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/labels - Success, returned 2 labels")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/label/category/values", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/label/category/values called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/label/category/values - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -776,15 +873,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/label/category/values - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/label/category/values - Success, returned 4 categories")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/targets", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/targets called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/targets - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -803,15 +905,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/targets - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/targets - Success, returned targets info")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/status/config", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/status/config called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/status/config - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -829,15 +936,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/status/config - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/status/config - Success, returned config")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/status/flags", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/status/flags called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/status/flags - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -853,15 +965,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/status/flags - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/status/flags - Success, returned flags")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/status/runtimeinfo", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/status/runtimeinfo called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/status/runtimeinfo - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -880,15 +997,20 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/status/runtimeinfo - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/status/runtimeinfo - Success, returned runtime info")
 		w.Write(jsonData)
 	})
 
 	http.HandleFunc("/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("API: /api/v1/status/buildinfo called - %s %s", r.Method, r.URL.Path)
+
 		if r.Method != "GET" {
+			log.Printf("API: /api/v1/status/buildinfo - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
@@ -911,10 +1033,12 @@ func main() {
 
 		jsonData, err := json.Marshal(response)
 		if err != nil {
+			log.Printf("API: /api/v1/status/buildinfo - JSON marshal error: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
+		log.Printf("API: /api/v1/status/buildinfo - Success, returned build info")
 		w.Write(jsonData)
 	})
 
