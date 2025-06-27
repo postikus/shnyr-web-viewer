@@ -529,13 +529,45 @@ func main() {
 
 		log.Printf("API: /api/v1/query called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
 
-		if r.Method != "GET" {
+		if r.Method != "GET" && r.Method != "POST" {
 			log.Printf("API: /api/v1/query - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
-		query := r.URL.Query().Get("query")
+		// Для POST запросов читаем параметры из тела запроса
+		var query string
+		if r.Method == "POST" {
+			// Читаем тело запроса
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("API: /api/v1/query - Error reading body: %v", err)
+				http.Error(w, "Error reading request body", 400)
+				return
+			}
+			defer r.Body.Close()
+
+			// Парсим JSON из тела запроса
+			var requestData map[string]interface{}
+			if err := json.Unmarshal(body, &requestData); err != nil {
+				log.Printf("API: /api/v1/query - Error parsing JSON: %v", err)
+				http.Error(w, "Invalid JSON", 400)
+				return
+			}
+
+			// Извлекаем query из JSON
+			if q, ok := requestData["query"].(string); ok {
+				query = q
+			} else {
+				log.Printf("API: /api/v1/query - Missing query in JSON body")
+				http.Error(w, "Missing query parameter", 400)
+				return
+			}
+		} else {
+			// Для GET запросов берем из URL параметров
+			query = r.URL.Query().Get("query")
+		}
+
 		if query == "" {
 			log.Printf("API: /api/v1/query - Missing query parameter")
 			http.Error(w, "Missing query parameter", 400)
