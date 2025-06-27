@@ -77,61 +77,24 @@ func init() {
 func updateGoldCoinMetrics(db *sql.DB) {
 	log.Printf("🔄 Обновление метрик gold coin...")
 
+	// Оптимизированный запрос - более простой и быстрый
 	query := `
-	WITH gold_coin_ocr AS (
-		SELECT DISTINCT ocr.id as ocr_id
-		FROM octopus.ocr_results ocr
-		INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
-		WHERE si.title = 'gold coin' 
-		  AND si.category = 'buy_consumables'
-	),
-	price_analysis AS (
-		SELECT 
-			gco.ocr_id,
-			si.id as structured_item_id,
-			si.title,
-			si.category,
-			si.price,
-			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
-		FROM gold_coin_ocr gco
-		INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
-		WHERE si.price IS NOT NULL 
-		  AND si.price != ''
-		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
-	),
-	top_3_prices AS (
-		SELECT 
-			ocr_id,
-			title,
-			category,
-			price,
-			price_numeric,
-			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
-		FROM price_analysis
-	),
-	avg_min_3_prices AS (
-		SELECT 
-			ocr_id,
-			title,
-			category,
-			COUNT(*) as prices_count,
-			AVG(price_numeric) as avg_min_3_prices,
-			MIN(price_numeric) as min_price,
-			MAX(price_numeric) as max_price_of_min_3
-		FROM top_3_prices
-		WHERE price_rank <= 3
-		GROUP BY ocr_id, title, category
-	)
 	SELECT 
-		category,
-		COUNT(*) as total_records,
-		AVG(avg_min_3_prices) as avg_price,
-		MIN(min_price) as min_price,
-		MAX(max_price_of_min_3) as max_price,
-		SUM(prices_count) as total_prices
-	FROM avg_min_3_prices
-	GROUP BY category
-	ORDER BY category
+		si.category,
+		COUNT(DISTINCT ocr.id) as total_records,
+		AVG(CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2))) as avg_price,
+		MIN(CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2))) as min_price,
+		MAX(CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2))) as max_price,
+		COUNT(si.id) as total_prices
+	FROM octopus.structured_items si
+	INNER JOIN octopus.ocr_results ocr ON si.ocr_result_id = ocr.id
+	WHERE si.title = 'gold coin' 
+	  AND si.category IN ('buy_consumables', 'sell_consumables')
+	  AND si.price IS NOT NULL 
+	  AND si.price != ''
+	  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
+	GROUP BY si.category
+	ORDER BY si.category
 	`
 
 	rows, err := db.Query(query)

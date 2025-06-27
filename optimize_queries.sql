@@ -12,6 +12,13 @@ CREATE INDEX idx_structured_items_title_category ON structured_items(title, cate
 -- Добавляем индекс на price для быстрой фильтрации по цене
 CREATE INDEX idx_structured_items_price ON structured_items(price);
 
+-- Специальный индекс для запроса метрик gold coin
+CREATE INDEX idx_structured_items_gold_coin_metrics ON structured_items(title, category, price) 
+WHERE title = 'gold coin' AND category IN ('buy_consumables', 'sell_consumables');
+
+-- Индекс для быстрого JOIN между таблицами
+CREATE INDEX idx_ocr_results_id ON ocr_results(id);
+
 -- Анализируем таблицы для обновления статистики
 ANALYZE TABLE ocr_results;
 ANALYZE TABLE structured_items; 
