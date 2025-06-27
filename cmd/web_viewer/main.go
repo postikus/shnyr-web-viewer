@@ -955,6 +955,57 @@ func main() {
 		w.Write([]byte(`{"status":"success","data":[{"__name__":"gold_coin_avg_min_3_prices","category":"buy_consumables"}]}`))
 	})
 
+	// /metrics/api/v1/labels — список всех лейблов
+	http.HandleFunc("/metrics/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		labels := []string{"__name__", "category"}
+		resp := map[string]interface{}{
+			"status": "success",
+			"data":   labels,
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// /metrics/api/v1/label/<label_name>/values — значения для конкретного лейбла
+	http.HandleFunc("/metrics/api/v1/label/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) < 6 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"status":"error","errorType":"bad_data","error":"label name required"}`))
+			return
+		}
+		labelName := parts[5]
+		valuesSet := make(map[string]struct{})
+		ch := make(chan prometheus.Metric)
+		go func() {
+			goldCoinAvgPrice.Collect(ch)
+			close(ch)
+		}()
+		for metric := range ch {
+			dto := &io_prometheus_client.Metric{}
+			if err := metric.Write(dto); err != nil {
+				continue
+			}
+			for _, label := range dto.Label {
+				if label.GetName() == labelName {
+					valuesSet[label.GetValue()] = struct{}{}
+				}
+			}
+		}
+		var values []string
+		for v := range valuesSet {
+			values = append(values, v)
+		}
+		resp := map[string]interface{}{
+			"status": "success",
+			"data":   values,
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
 	// Простой health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
