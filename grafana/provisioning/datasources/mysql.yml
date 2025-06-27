@@ -16,6 +16,6 @@ datasources:
       maxIdleConnsAuto: true
       connMaxLifetimeAuto: true
       maxOpenConnsAuto: true
-      timezone: browser
+      timezone: America/Los_Angeles
       tlsSkipVerify: true
       allowCleartextPasswords: true 
