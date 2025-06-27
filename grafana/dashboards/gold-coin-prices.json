@@ -1,0 +1,84 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Gold Coin Prices Monitoring",
+    "tags": ["shnyr", "gold-coin"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Average Min 3 Prices",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "gold_coin_avg_min_3_prices",
+            "legendFormat": "{{category}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Min Price",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "gold_coin_min_price",
+            "legendFormat": "{{category}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Max Price of Min 3",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "gold_coin_max_price_of_min_3",
+            "legendFormat": "{{category}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Prices Count",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "gold_coin_prices_count",
+            "legendFormat": "{{category}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+} 

@@ -310,6 +310,74 @@ function highlightCheapestItems() {
 	});
 }
 
+// Функция для асинхронного обновления страницы
+function updatePageIfNoFilters() {
+	// Проверяем, есть ли активные фильтры
+	const searchInput = document.querySelector('input[name="search"]');
+	const minPriceInput = document.querySelector('input[name="min_price"]');
+	const maxPriceInput = document.querySelector('input[name="max_price"]');
+	
+	const hasSearch = searchInput && searchInput.value.trim() !== '';
+	const hasMinPrice = minPriceInput && minPriceInput.value.trim() !== '';
+	const hasMaxPrice = maxPriceInput && maxPriceInput.value.trim() !== '';
+	
+	// Если есть фильтры, не обновляем
+	if (hasSearch || hasMinPrice || hasMaxPrice) {
+		return;
+	}
+	
+	// Проверяем, что мы на первой странице
+	const currentPageElement = document.querySelector('.pagination .current');
+	if (currentPageElement && currentPageElement.textContent !== '1') {
+		return;
+	}
+	
+	// Выполняем запрос для обновления страницы
+	fetch(window.location.pathname + '?page=1')
+		.then(response => response.text())
+		.then(html => {
+			// Создаем временный элемент для парсинга HTML
+			const parser = new DOMParser();
+			const newDoc = parser.parseFromString(html, 'text/html');
+			
+			// Обновляем только содержимое таблицы
+			const currentTable = document.querySelector('.mobile-table table');
+			const newTable = newDoc.querySelector('.mobile-table table');
+			
+			if (currentTable && newTable) {
+				currentTable.innerHTML = newTable.innerHTML;
+				
+				// Перепривязываем обработчики событий
+				const rows = currentTable.querySelectorAll('tr[onclick]');
+				rows.forEach(row => {
+					row.addEventListener('click', function() {
+						openDetailModalFromData(this);
+					});
+				});
+				
+				// Обновляем статистику
+				const currentStats = document.querySelector('.stats');
+				const newStats = newDoc.querySelector('.stats');
+				if (currentStats && newStats) {
+					currentStats.innerHTML = newStats.innerHTML;
+				}
+				
+				// Обновляем пагинацию
+				const currentPagination = document.querySelector('.pagination');
+				const newPagination = newDoc.querySelector('.pagination');
+				if (currentPagination && newPagination) {
+					currentPagination.innerHTML = newPagination.innerHTML;
+				}
+				
+				// Вызываем функцию выделения дешевых предметов
+				highlightCheapestItems();
+			}
+		})
+		.catch(error => {
+			console.log('Ошибка обновления страницы:', error);
+		});
+}
+
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
 	// Вызываем функцию выделения дешевых предметов
@@ -336,6 +404,9 @@ document.addEventListener('DOMContentLoaded', function() {
 			closeDetailModal();
 		}
 	});
+	
+	// Запускаем обновление каждые 3 секунды
+	setInterval(updatePageIfNoFilters, 3000);
 });
 
 function formatDateTime(dateTimeStr) {
@@ -365,12 +436,9 @@ function sendAction(action) {
 	.then(response => {
 		if (response.ok) {
 			console.log('Действие', action, 'успешно отправлено');
-			// Обновляем только статус через 1 секунду, без перезагрузки страницы
+			// Обновляем страницу через 1 секунду, чтобы показать новый статус
 			setTimeout(() => {
-				// Вызываем updateStatus если она доступна
-				if (typeof updateStatus === 'function') {
-					updateStatus();
-				}
+				window.location.reload();
 			}, 1000);
 		} else {
 			console.error('Ошибка при отправке действия:', response.status);

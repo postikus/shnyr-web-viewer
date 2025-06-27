@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,10 +44,10 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinPriceCount = prometheus.NewGaugeVec(
+	goldCoinPricesCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_prices_count",
-			Help: "Количество цен для gold coin",
+			Help: "Количество найденных цен для gold coin",
 		},
 		[]string{"category"},
 	)
@@ -58,16 +58,16 @@ func init() {
 	prometheus.MustRegister(goldCoinAvgPrice)
 	prometheus.MustRegister(goldCoinMinPrice)
 	prometheus.MustRegister(goldCoinMaxPrice)
-	prometheus.MustRegister(goldCoinPriceCount)
+	prometheus.MustRegister(goldCoinPricesCount)
 }
 
-// updateGoldCoinMetrics обновляет метрики для gold coin
-func updateGoldCoinMetrics(db *sql.DB) {
+// updateGoldCoinMetrics обновляет метрики Prometheus на основе данных из базы
+func updateGoldCoinMetrics(db *sql.DB) error {
 	query := `
 	WITH gold_coin_ocr AS (
 		SELECT DISTINCT ocr.id as ocr_id
-		FROM octopus.ocr_results ocr
-		INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
+		FROM ocr_results ocr
+		INNER JOIN structured_items si ON ocr.id = si.ocr_result_id
 		WHERE si.title = 'gold coin' 
 		  AND si.category = 'buy_consumables'
 	),
@@ -78,9 +78,12 @@ func updateGoldCoinMetrics(db *sql.DB) {
 			si.title,
 			si.category,
 			si.price,
+			si.owner,
+			si.count,
+			si.package,
 			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
 		FROM gold_coin_ocr gco
-		INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
+		INNER JOIN structured_items si ON gco.ocr_id = si.ocr_result_id
 		WHERE si.price IS NOT NULL 
 		  AND si.price != ''
 		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
@@ -92,6 +95,9 @@ func updateGoldCoinMetrics(db *sql.DB) {
 			category,
 			price,
 			price_numeric,
+			owner,
+			count,
+			package,
 			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
 		FROM price_analysis
 	),
@@ -103,48 +109,96 @@ func updateGoldCoinMetrics(db *sql.DB) {
 			COUNT(*) as prices_count,
 			AVG(price_numeric) as avg_min_3_prices,
 			MIN(price_numeric) as min_price,
-			MAX(price_numeric) as max_price_of_min_3
+			MAX(price_numeric) as max_price_of_min_3,
+			GROUP_CONCAT(price ORDER BY price_numeric ASC SEPARATOR ', ') as min_3_prices
 		FROM top_3_prices
 		WHERE price_rank <= 3
 		GROUP BY ocr_id, title, category
 	)
 	SELECT 
-		category,
-		COUNT(*) as total_records,
-		AVG(avg_min_3_prices) as avg_price,
-		MIN(min_price) as min_price,
-		MAX(max_price_of_min_3) as max_price,
-		SUM(prices_count) as total_prices
-	FROM avg_min_3_prices
-	GROUP BY category
-	ORDER BY category
+		am3p.ocr_id,
+		am3p.title,
+		am3p.category,
+		am3p.prices_count,
+		am3p.avg_min_3_prices,
+		am3p.min_price,
+		am3p.max_price_of_min_3,
+		am3p.min_3_prices,
+		ocr.created_at
+	FROM avg_min_3_prices am3p
+	INNER JOIN ocr_results ocr ON am3p.ocr_id = ocr.id
+	ORDER BY ocr.created_at DESC
+	LIMIT 10
 	`
 
 	rows, err := db.Query(query)
 	if err != nil {
-		log.Printf("Ошибка получения метрик gold coin: %v", err)
-		return
+		return fmt.Errorf("ошибка выполнения запроса: %v", err)
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var category string
-		var totalRecords int
-		var avgPrice, minPrice, maxPrice float64
-		var totalPrices int
+	// Сбрасываем старые метрики
+	goldCoinAvgPrice.Reset()
+	goldCoinMinPrice.Reset()
+	goldCoinMaxPrice.Reset()
+	goldCoinPricesCount.Reset()
 
-		err := rows.Scan(&category, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
+	var totalCount int
+	var totalAvgPrice, totalMinPrice, totalMaxPrice float64
+
+	for rows.Next() {
+		var (
+			ocrID          int
+			title          string
+			category       string
+			pricesCount    int
+			avgMin3Prices  sql.NullFloat64
+			minPrice       sql.NullFloat64
+			maxPriceOfMin3 sql.NullFloat64
+			min3Prices     string
+			createdAt      string
+		)
+
+		err := rows.Scan(&ocrID, &title, &category, &pricesCount, &avgMin3Prices, &minPrice, &maxPriceOfMin3, &min3Prices, &createdAt)
 		if err != nil {
-			log.Printf("Ошибка сканирования метрик: %v", err)
+			log.Printf("ошибка сканирования строки: %v", err)
 			continue
 		}
 
-		// Обновляем метрики
-		goldCoinAvgPrice.WithLabelValues(category).Set(avgPrice)
-		goldCoinMinPrice.WithLabelValues(category).Set(minPrice)
-		goldCoinMaxPrice.WithLabelValues(category).Set(maxPrice)
-		goldCoinPriceCount.WithLabelValues(category).Set(float64(totalPrices))
+		totalCount++
+
+		// Обновляем метрики для каждой записи
+		if avgMin3Prices.Valid {
+			goldCoinAvgPrice.WithLabelValues(category).Set(avgMin3Prices.Float64)
+			totalAvgPrice += avgMin3Prices.Float64
+		}
+
+		if minPrice.Valid {
+			goldCoinMinPrice.WithLabelValues(category).Set(minPrice.Float64)
+			if totalMinPrice == 0 || minPrice.Float64 < totalMinPrice {
+				totalMinPrice = minPrice.Float64
+			}
+		}
+
+		if maxPriceOfMin3.Valid {
+			goldCoinMaxPrice.WithLabelValues(category).Set(maxPriceOfMin3.Float64)
+			if maxPriceOfMin3.Float64 > totalMaxPrice {
+				totalMaxPrice = maxPriceOfMin3.Float64
+			}
+		}
+
+		goldCoinPricesCount.WithLabelValues(category).Set(float64(pricesCount))
 	}
+
+	// Обновляем общие метрики
+	if totalCount > 0 {
+		goldCoinAvgPrice.WithLabelValues("overall").Set(totalAvgPrice / float64(totalCount))
+		goldCoinMinPrice.WithLabelValues("overall").Set(totalMinPrice)
+		goldCoinMaxPrice.WithLabelValues("overall").Set(totalMaxPrice)
+		goldCoinPricesCount.WithLabelValues("overall").Set(float64(totalCount))
+	}
+
+	return nil
 }
 
 type StructuredItem struct {
@@ -361,64 +415,6 @@ func updateLatestPendingAction(db *sql.DB) error {
 	return nil
 }
 
-// getPrometheusMetrics возвращает текущие значения метрик в формате Prometheus
-func getPrometheusMetrics() map[string]interface{} {
-	// Получаем текущие значения метрик
-	metrics := make(map[string]interface{})
-
-	// Получаем значения для gold_coin_avg_min_3_prices
-	goldCoinAvgPrice.WithLabelValues("buy_consumables").Set(0) // Временно устанавливаем значение
-	metrics["gold_coin_avg_min_3_prices"] = []map[string]interface{}{
-		{
-			"metric": map[string]string{
-				"__name__": "gold_coin_avg_min_3_prices",
-				"category": "buy_consumables",
-			},
-			"value": []interface{}{time.Now().Unix(), 0.0},
-		},
-	}
-
-	return metrics
-}
-
-// parsePromQL парсит простые PromQL запросы
-func parsePromQL(query string) (string, []string, error) {
-	// Простая реализация для базовых запросов
-	// Например: gold_coin_avg_min_3_prices{category="buy_consumables"}
-
-	// Убираем пробелы
-	query = strings.TrimSpace(query)
-
-	// Ищем метрику (до { или до конца строки)
-	metricName := query
-	if idx := strings.Index(query, "{"); idx != -1 {
-		metricName = query[:idx]
-	}
-
-	// Извлекаем лейблы
-	var labels []string
-	if idx := strings.Index(query, "{"); idx != -1 {
-		endIdx := strings.Index(query, "}")
-		if endIdx != -1 {
-			labelPart := query[idx+1 : endIdx]
-			labels = strings.Split(labelPart, ",")
-			for i, label := range labels {
-				labels[i] = strings.TrimSpace(label)
-			}
-		}
-	}
-
-	return metricName, labels, nil
-}
-
-// logMiddleware логирует все HTTP запросы
-func logMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("🌐 HTTP Request: %s %s - User-Agent: %s", r.Method, r.URL.Path, r.UserAgent())
-		next.ServeHTTP(w, r)
-	}
-}
-
 func main() {
 	// Получаем порт из переменной окружения
 	port := os.Getenv("PORT")
@@ -432,33 +428,21 @@ func main() {
 		host = "0.0.0.0"
 	}
 
-	log.Printf("🚀 Запуск ШНЫРЬ v0.1")
-	log.Printf("📋 Переменные окружения:")
-	log.Printf("   PORT: %s", port)
-	log.Printf("   HOST: %s", host)
-	log.Printf("   DB_HOST: %s", os.Getenv("DB_HOST"))
-	log.Printf("   DB_PORT: %s", os.Getenv("DB_PORT"))
-	log.Printf("   DB_USER: %s", os.Getenv("DB_USER"))
-	log.Printf("   DB_NAME: %s", os.Getenv("DB_NAME"))
-
 	// Подключаемся к базе данных
 	dbDSN := getDatabaseDSN()
-	log.Printf("🔗 Подключение к базе данных: %s", dbDSN)
-
 	db, err := sql.Open("mysql", dbDSN)
 	if err != nil {
-		log.Fatalf("❌ Ошибка подключения к базе данных: %v", err)
+		log.Fatalf("Ошибка подключения к базе данных: %v", err)
 	}
 	defer db.Close()
 
 	// Проверяем подключение
-	log.Printf("🔍 Проверка подключения к базе данных...")
 	if err := db.Ping(); err != nil {
-		log.Fatalf("❌ Ошибка проверки подключения к базе данных: %v", err)
+		log.Fatalf("Ошибка проверки подключения к базе данных: %v", err)
 	}
 
-	log.Printf("✅ Успешно подключились к базе данных")
-	log.Printf("🌐 Запускаем сервер на %s:%s", host, port)
+	log.Printf("Успешно подключились к базе данных: %s", dbDSN)
+	log.Printf("Запускаем сервер на %s:%s", host, port)
 
 	// Настройка статических файлов
 	staticPath := "static"
@@ -470,8 +454,355 @@ func main() {
 	fs := http.FileServer(http.Dir(staticPath))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Получаем параметры пагинации и поиска
+		pageStr := r.URL.Query().Get("page")
+		searchQuery := r.URL.Query().Get("search")
+		minPrice := r.URL.Query().Get("min_price")
+		maxPrice := r.URL.Query().Get("max_price")
+		activeTab := r.URL.Query().Get("tab")
+		itemSearch := r.URL.Query().Get("item_search")
+
+		if activeTab == "" {
+			activeTab = "main"
+		}
+
+		page := 1
+		if pageStr != "" {
+			if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+				page = p
+			}
+		}
+
+		// Получаем фильтры категорий для поиска по предмету
+		categoryBuyConsumables := r.URL.Query().Get("category_buy_consumables") == "1"
+		categoryBuyEquipment := r.URL.Query().Get("category_buy_equipment") == "1"
+		categorySellConsumables := r.URL.Query().Get("category_sell_consumables") == "1"
+		categorySellEquipment := r.URL.Query().Get("category_sell_equipment") == "1"
+
+		// Если ни одна категория не выбрана, выбираем все по умолчанию
+		if !categoryBuyConsumables && !categoryBuyEquipment && !categorySellConsumables && !categorySellEquipment {
+			categoryBuyConsumables = true
+			categoryBuyEquipment = true
+			categorySellConsumables = true
+			categorySellEquipment = true
+		}
+
+		// Если есть поиск по предмету, выполняем его
+		var itemResults []StructuredItem
+		if itemSearch != "" {
+			// Формируем список категорий для поиска
+			var categories []string
+			if categoryBuyConsumables {
+				categories = append(categories, "'buy_consumables'")
+			}
+			if categoryBuyEquipment {
+				categories = append(categories, "'buy_equipment'")
+			}
+			if categorySellConsumables {
+				categories = append(categories, "'sell_consumables'")
+			}
+			if categorySellEquipment {
+				categories = append(categories, "'sell_equipment'")
+			}
+
+			// Поиск по structured_items
+			itemQuery := fmt.Sprintf(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at 
+				FROM structured_items 
+				WHERE category IN (%s) AND title LIKE ? 
+				ORDER BY CAST(REPLACE(REPLACE(price, ',', ''), ' ', '') AS DECIMAL(10,2)), created_at DESC`, strings.Join(categories, ", "))
+
+			itemRows, err := db.Query(itemQuery, "%"+itemSearch+"%")
+			if err != nil {
+				http.Error(w, "DB error", 500)
+				return
+			}
+			defer itemRows.Close()
+
+			for itemRows.Next() {
+				var item StructuredItem
+				if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
+					itemResults = append(itemResults, item)
+				}
+			}
+		}
+
+		// Если активна вкладка поиска по предмету и есть результаты, показываем только их
+		if activeTab == "item_search" && itemSearch != "" {
+			// Получаем статус и действия
+			status, err := getCurrentStatus(db)
+			if err != nil {
+				log.Printf("Ошибка получения статуса: %v", err)
+				status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
+			}
+
+			recentActions, err := getRecentActions(db, 5)
+			if err != nil {
+				log.Printf("Ошибка получения действий: %v", err)
+				recentActions = []Action{}
+			}
+
+			// Подготавливаем данные для шаблона
+			pageData := PageData{
+				ActiveTab:               activeTab,
+				ItemSearch:              itemSearch,
+				ItemResults:             itemResults,
+				CategoryBuyConsumables:  categoryBuyConsumables,
+				CategoryBuyEquipment:    categoryBuyEquipment,
+				CategorySellConsumables: categorySellConsumables,
+				CategorySellEquipment:   categorySellEquipment,
+				Status:                  status,
+				RecentActions:           recentActions,
+			}
+
+			renderTemplate(w, pageData)
+			return
+		}
+
+		// Получаем список предметов из items_list
+		itemsList, err := getItemsList(db)
+		if err != nil {
+			log.Printf("Ошибка получения items_list: %v", err)
+			itemsList = []ItemsListItem{} // Пустой список в случае ошибки
+		}
+
+		resultsPerPage := 10
+		offset := (page - 1) * resultsPerPage
+
+		// Формируем SQL запрос с поиском
+		var countQuery, dataQuery string
+		var args []interface{}
+
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
+			// Поиск по структурированным данным
+			countQuery = `SELECT COUNT(DISTINCT ocr.id) FROM ocr_results ocr 
+				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
+				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
+			dataQuery = `SELECT DISTINCT ocr.id, ocr.image_path, ocr.image_data, ocr.ocr_text, ocr.debug_info, ocr.json_data, ocr.raw_text, ocr.created_at 
+				FROM ocr_results ocr 
+				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
+				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
+
+			searchPattern := "%" + searchQuery + "%"
+			args = []interface{}{searchPattern, searchPattern, searchPattern, searchPattern}
+
+			// Добавляем фильтрацию по цене
+			if minPrice != "" || maxPrice != "" {
+				countQuery += ` AND (`
+				dataQuery += ` AND (`
+				priceConditions := []string{}
+				priceArgs := []interface{}{}
+
+				if minPrice != "" {
+					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) >= ?")
+					priceArgs = append(priceArgs, minPrice)
+				}
+
+				if maxPrice != "" {
+					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) <= ?")
+					priceArgs = append(priceArgs, maxPrice)
+				}
+
+				countQuery += strings.Join(priceConditions, " AND ") + ")"
+				dataQuery += strings.Join(priceConditions, " AND ") + ")"
+				args = append(args, priceArgs...)
+			}
+
+			dataQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
+		} else {
+			// Без поиска
+			countQuery = "SELECT COUNT(*) FROM ocr_results"
+			dataQuery = `SELECT id, image_path, image_data, ocr_text, debug_info, json_data, raw_text, created_at FROM ocr_results ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		}
+
+		// Получаем общее количество записей
+		var totalCount int
+		var countArgs []interface{}
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
+			countArgs = args
+		}
+		err = db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		if err != nil {
+			http.Error(w, "DB error", 500)
+			return
+		}
+
+		// Вычисляем общее количество страниц
+		totalPages := (totalCount + resultsPerPage - 1) / resultsPerPage
+		if totalPages == 0 {
+			totalPages = 1
+		}
+
+		// Проверяем, что текущая страница не превышает общее количество
+		if page > totalPages {
+			page = totalPages
+			offset = (page - 1) * resultsPerPage
+		}
+
+		// Получаем записи для текущей страницы
+		var rows *sql.Rows
+		if searchQuery != "" || minPrice != "" || maxPrice != "" {
+			args = append(args, resultsPerPage, offset)
+			rows, err = db.Query(dataQuery, args...)
+		} else {
+			rows, err = db.Query(dataQuery, resultsPerPage, offset)
+		}
+
+		if err != nil {
+			http.Error(w, "DB error", 500)
+			return
+		}
+		defer rows.Close()
+
+		var results []OCRResult
+		for rows.Next() {
+			var res OCRResult
+			if err := rows.Scan(&res.ID, &res.ImagePath, &res.ImageData, &res.OCRText, &res.DebugInfo, &res.JSONData, &res.RawText, &res.CreatedAt); err != nil {
+				continue
+			}
+
+			// Загружаем структурированные данные для этого OCR результата
+			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
+			if err == nil {
+				defer itemRows.Close()
+				for itemRows.Next() {
+					var item StructuredItem
+					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
+						res.Items = append(res.Items, item)
+					}
+				}
+			}
+
+			results = append(results, res)
+		}
+
+		// Получаем статус и действия
+		status, err := getCurrentStatus(db)
+		if err != nil {
+			log.Printf("Ошибка получения статуса: %v", err)
+			status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
+		}
+
+		recentActions, err := getRecentActions(db, 5)
+		if err != nil {
+			log.Printf("Ошибка получения действий: %v", err)
+			recentActions = []Action{}
+		}
+
+		// Подготавливаем данные для шаблона
+		pageData := PageData{
+			Results:       results,
+			CurrentPage:   page,
+			TotalPages:    totalPages,
+			TotalCount:    totalCount,
+			HasPrev:       page > 1,
+			HasNext:       page < totalPages,
+			PrevPage:      page - 1,
+			NextPage:      page + 1,
+			SearchQuery:   searchQuery,
+			MinPrice:      minPrice,
+			MaxPrice:      maxPrice,
+			ActiveTab:     activeTab,
+			ItemsList:     itemsList,
+			Status:        status,
+			RecentActions: recentActions,
+		}
+
+		renderTemplate(w, pageData)
+	})
+
+	// Обработчик для кнопки Start
+	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "start", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия start: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на start
+		err = updateStatus(db, "start")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Stop
+	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "stop", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия stop: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на stop
+		err = updateStatus(db, "stop")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Restart
+	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "restart", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия restart: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на restart
+		err = updateStatus(db, "restart")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
 	// Обработчик для получения статуса в формате JSON
-	http.HandleFunc("/status", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			http.Error(w, "Method not allowed", 405)
 			return
@@ -503,721 +834,33 @@ func main() {
 		}
 
 		w.Write(jsonData)
-	}))
+	})
 
-	// Endpoint для Prometheus метрик - обрабатывает все пути начинающиеся с /metrics/
-	http.HandleFunc("/metrics/", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /metrics/ called - %s %s", r.Method, r.URL.Path)
-		promhttp.Handler().ServeHTTP(w, r)
-	}))
+	// Endpoint для Prometheus метрик
+	http.Handle("/metrics", promhttp.Handler())
 
-	// Также оставляем точный путь /metrics для совместимости
-	http.Handle("/metrics", logMiddleware(promhttp.Handler().ServeHTTP))
-
-	// Prometheus API endpoints для совместимости с Grafana
-	http.HandleFunc("/api/v1/query", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		// Добавляем CORS заголовки
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		// Обрабатываем preflight запросы
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		log.Printf("API: /api/v1/query called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
-
-		if r.Method != "GET" && r.Method != "POST" {
-			log.Printf("API: /api/v1/query - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Для POST запросов читаем параметры из тела запроса
-		var query string
-		if r.Method == "POST" {
-			// Читаем тело запроса
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				log.Printf("API: /api/v1/query - Error reading body: %v", err)
-				http.Error(w, "Error reading request body", 400)
-				return
-			}
-			defer r.Body.Close()
-
-			// Парсим JSON из тела запроса
-			var requestData map[string]interface{}
-			if err := json.Unmarshal(body, &requestData); err != nil {
-				log.Printf("API: /api/v1/query - Error parsing JSON: %v", err)
-				http.Error(w, "Invalid JSON", 400)
-				return
-			}
-
-			// Извлекаем query из JSON
-			if q, ok := requestData["query"].(string); ok {
-				query = q
-			} else {
-				log.Printf("API: /api/v1/query - Missing query in JSON body")
-				http.Error(w, "Missing query parameter", 400)
-				return
-			}
-		} else {
-			// Для GET запросов берем из URL параметров
-			query = r.URL.Query().Get("query")
-		}
-
-		if query == "" {
-			log.Printf("API: /api/v1/query - Missing query parameter")
-			http.Error(w, "Missing query parameter", 400)
-			return
-		}
-
-		log.Printf("API: /api/v1/query - Processing query: %s", query)
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Парсим запрос
-		metricName, _, err := parsePromQL(query)
-		if err != nil {
-			log.Printf("API: /api/v1/query - Invalid query: %s, error: %v", query, err)
-			http.Error(w, "Invalid query", 400)
-			return
-		}
-
-		log.Printf("API: /api/v1/query - Parsed metric: %s", metricName)
-
-		// Обновляем метрики из базы данных
-		updateGoldCoinMetrics(db)
-
-		// Формируем ответ в зависимости от запрошенной метрики
-		var result []interface{}
-
-		switch metricName {
-		case "gold_coin_avg_min_3_prices":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_avg_min_3_prices",
-						"category": "buy_consumables",
-					},
-					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-				},
-			}
-		case "gold_coin_min_price":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_min_price",
-						"category": "buy_consumables",
-					},
-					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-				},
-			}
-		case "gold_coin_max_price_of_min_3":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_max_price_of_min_3",
-						"category": "buy_consumables",
-					},
-					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-				},
-			}
-		case "gold_coin_prices_count":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_prices_count",
-						"category": "buy_consumables",
-					},
-					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-				},
-			}
-		default:
-			log.Printf("API: /api/v1/query - Unknown metric: %s", metricName)
-			result = []interface{}{}
-		}
-
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"resultType": "vector",
-				"result":     result,
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/query - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/query - Success, returned %d results", len(result))
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/query_range", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/query_range called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
-
-		if r.Method != "GET" && r.Method != "POST" {
-			log.Printf("API: /api/v1/query_range - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Для POST запросов читаем параметры из тела запроса
-		var query string
-		if r.Method == "POST" {
-			// Читаем тело запроса
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				log.Printf("API: /api/v1/query_range - Error reading body: %v", err)
-				http.Error(w, "Error reading request body", 400)
-				return
-			}
-			defer r.Body.Close()
-
-			// Парсим JSON из тела запроса
-			var requestData map[string]interface{}
-			if err := json.Unmarshal(body, &requestData); err != nil {
-				log.Printf("API: /api/v1/query_range - Error parsing JSON: %v", err)
-				http.Error(w, "Invalid JSON", 400)
-				return
-			}
-
-			// Извлекаем query из JSON
-			if q, ok := requestData["query"].(string); ok {
-				query = q
-			} else {
-				log.Printf("API: /api/v1/query_range - Missing query in JSON body")
-				http.Error(w, "Missing query parameter", 400)
-				return
-			}
-		} else {
-			// Для GET запросов берем из URL параметров
-			query = r.URL.Query().Get("query")
-		}
-
-		if query == "" {
-			log.Printf("API: /api/v1/query_range - Missing query parameter")
-			http.Error(w, "Missing query parameter", 400)
-			return
-		}
-
-		log.Printf("API: /api/v1/query_range - Processing query: %s", query)
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Парсим запрос
-		metricName, _, err := parsePromQL(query)
-		if err != nil {
-			log.Printf("API: /api/v1/query_range - Invalid query: %s, error: %v", query, err)
-			http.Error(w, "Invalid query", 400)
-			return
-		}
-
-		log.Printf("API: /api/v1/query_range - Parsed metric: %s", metricName)
-
-		// Обновляем метрики из базы данных
-		updateGoldCoinMetrics(db)
-
-		// Для range query возвращаем несколько точек данных
-		var result []interface{}
-
-		switch metricName {
-		case "gold_coin_avg_min_3_prices":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_avg_min_3_prices",
-						"category": "buy_consumables",
-					},
-					"values": [][]interface{}{
-						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
-					},
-				},
-			}
-		case "gold_coin_min_price":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_min_price",
-						"category": "buy_consumables",
-					},
-					"values": [][]interface{}{
-						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
-					},
-				},
-			}
-		case "gold_coin_max_price_of_min_3":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_max_price_of_min_3",
-						"category": "buy_consumables",
-					},
-					"values": [][]interface{}{
-						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
-					},
-				},
-			}
-		case "gold_coin_prices_count":
-			result = []interface{}{
-				map[string]interface{}{
-					"metric": map[string]string{
-						"__name__": "gold_coin_prices_count",
-						"category": "buy_consumables",
-					},
-					"values": [][]interface{}{
-						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
-						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
-					},
-				},
-			}
-		default:
-			log.Printf("API: /api/v1/query_range - Unknown metric: %s", metricName)
-			result = []interface{}{}
-		}
-
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"resultType": "matrix",
-				"result":     result,
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/query_range - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/query_range - Success, returned %d results", len(result))
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/label/__name__/values", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/label/__name__/values called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/label/__name__/values - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем список доступных метрик
-		response := map[string]interface{}{
-			"status": "success",
-			"data": []string{
-				"gold_coin_avg_min_3_prices",
-				"gold_coin_min_price",
-				"gold_coin_max_price_of_min_3",
-				"gold_coin_prices_count",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/label/__name__/values - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/label/__name__/values - Success, returned 4 metrics")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/labels", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/labels called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/labels - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем список доступных лейблов
-		response := map[string]interface{}{
-			"status": "success",
-			"data": []string{
-				"__name__",
-				"category",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/labels - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/labels - Success, returned 2 labels")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/label/category/values", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/label/category/values called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/label/category/values - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем список доступных категорий
-		response := map[string]interface{}{
-			"status": "success",
-			"data": []string{
-				"buy_consumables",
-				"buy_equipment",
-				"sell_consumables",
-				"sell_equipment",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/label/category/values - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/label/category/values - Success, returned 4 categories")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/targets", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/targets called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/targets - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем информацию о целях
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"activeTargets":  []interface{}{},
-				"droppedTargets": []interface{}{},
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/targets - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/targets - Success, returned targets info")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/status/config", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/status/config called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/status/config - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем конфигурацию
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"yaml": "# Prometheus configuration\n",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/status/config - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/status/config - Success, returned config")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/status/flags", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/status/flags called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/status/flags - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем флаги
-		response := map[string]interface{}{
-			"status": "success",
-			"data":   map[string]interface{}{},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/status/flags - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/status/flags - Success, returned flags")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/status/runtimeinfo", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/status/runtimeinfo called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/status/runtimeinfo - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем информацию о runtime
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"startTime": time.Now().Format(time.RFC3339),
-				"CWD":       "/app",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/status/runtimeinfo - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/status/runtimeinfo - Success, returned runtime info")
-		w.Write(jsonData)
-	}))
-
-	http.HandleFunc("/api/v1/status/buildinfo", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("API: /api/v1/status/buildinfo called - %s %s", r.Method, r.URL.Path)
-
-		if r.Method != "GET" {
-			log.Printf("API: /api/v1/status/buildinfo - Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Возвращаем информацию о сборке
-		response := map[string]interface{}{
-			"status": "success",
-			"data": map[string]interface{}{
-				"version":   "1.0.0",
-				"revision":  "development",
-				"branch":    "main",
-				"buildUser": "shnyr",
-				"buildDate": time.Now().Format(time.RFC3339),
-				"goVersion": "1.23",
-			},
-		}
-
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("API: /api/v1/status/buildinfo - JSON marshal error: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		log.Printf("API: /api/v1/status/buildinfo - Success, returned build info")
-		w.Write(jsonData)
-	}))
-
-	// Простой health check endpoint
-	http.HandleFunc("/health", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-
-	// Endpoint для запуска скрипта
-	http.HandleFunc("/start", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Добавляем действие "start"
-		err := addAction(db, "start")
-		if err != nil {
-			log.Printf("Ошибка добавления действия start: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на "starting"
-		err = updateStatus(db, "starting")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Start action added"))
-	}))
-
-	// Endpoint для остановки скрипта
-	http.HandleFunc("/stop", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Добавляем действие "stop"
-		err := addAction(db, "stop")
-		if err != nil {
-			log.Printf("Ошибка добавления действия stop: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на "stopping"
-		err = updateStatus(db, "stopping")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Stop action added"))
-	}))
-
-	// Endpoint для перезапуска скрипта
-	http.HandleFunc("/restart", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Добавляем действие "restart"
-		err := addAction(db, "restart")
-		if err != nil {
-			log.Printf("Ошибка добавления действия restart: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на "restarting"
-		err = updateStatus(db, "restarting")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Restart action added"))
-	}))
-
-	// Главный endpoint для веб-интерфейса
-	http.HandleFunc("/", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		// Обрабатываем только GET запросы
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Получаем параметры из URL
-		searchQuery := r.URL.Query().Get("search")
-		minPrice := r.URL.Query().Get("min_price")
-		maxPrice := r.URL.Query().Get("max_price")
-		activeTab := r.URL.Query().Get("tab")
-		itemSearch := r.URL.Query().Get("item_search")
-
-		// Получаем данные для отображения
-		var data PageData
-
-		// Получаем статус
-		status, err := getCurrentStatus(db)
-		if err != nil {
-			log.Printf("Ошибка получения статуса: %v", err)
-		} else {
-			data.Status = status
-		}
-
-		// Получаем последние действия
-		actions, err := getRecentActions(db, 10)
-		if err != nil {
-			log.Printf("Ошибка получения действий: %v", err)
-		} else {
-			data.RecentActions = actions
-		}
-
-		// Получаем список предметов
-		itemsList, err := getItemsList(db)
-		if err != nil {
-			log.Printf("Ошибка получения списка предметов: %v", err)
-		} else {
-			data.ItemsList = itemsList
-		}
-
-		// Устанавливаем активную вкладку
-		if activeTab == "" {
-			activeTab = "main"
-		}
-		data.ActiveTab = activeTab
-
-		// Устанавливаем поисковые параметры
-		data.SearchQuery = searchQuery
-		data.MinPrice = minPrice
-		data.MaxPrice = maxPrice
-		data.ItemSearch = itemSearch
-
-		// Рендерим шаблон
-		renderTemplate(w, data)
-	}))
-
-	// Запускаем периодическое обновление метрик
+	// Запускаем горутину для периодического обновления метрик
 	go func() {
 		for {
-			updateGoldCoinMetrics(db)
-			time.Sleep(30 * time.Second) // Обновляем каждые 30 секунд
+			// Обновляем метрики каждые 30 секунд
+			time.Sleep(30 * time.Second)
+
+			err := updateGoldCoinMetrics(db)
+			if err != nil {
+				log.Printf("Ошибка обновления метрик: %v", err)
+			} else {
+				log.Printf("Метрики gold coin обновлены")
+			}
 		}
 	}()
+
+	// Первоначальное обновление метрик
+	err = updateGoldCoinMetrics(db)
+	if err != nil {
+		log.Printf("Ошибка первоначального обновления метрик: %v", err)
+	} else {
+		log.Printf("Первоначальные метрики gold coin установлены")
+	}
 
 	fmt.Printf("🚀 ШНЫРЬ v0.1 запущен на порту %s\n", port)
 	fmt.Printf("📊 База данных: %s\n", dbDSN)
