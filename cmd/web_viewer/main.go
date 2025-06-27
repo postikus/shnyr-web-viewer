@@ -1006,6 +1006,44 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
+	// /metrics/api/v1/metadata — возвращает метаданные о метриках
+	http.HandleFunc("/metrics/api/v1/metadata", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		metadata := map[string][]map[string]string{
+			"gold_coin_avg_min_3_prices": {{
+				"type": "gauge",
+				"help": "Среднее из 3 минимальных цен для gold coin",
+				"unit": "",
+			}},
+			"gold_coin_min_price": {{
+				"type": "gauge",
+				"help": "Минимальная цена для gold coin",
+				"unit": "",
+			}},
+			"gold_coin_max_price_of_min_3": {{
+				"type": "gauge",
+				"help": "Максимальная из 3 минимальных цен для gold coin",
+				"unit": "",
+			}},
+			"gold_coin_prices_count": {{
+				"type": "gauge",
+				"help": "Количество цен для gold coin",
+				"unit": "",
+			}},
+			"shnyr_test_metric": {{
+				"type": "gauge",
+				"help": "Тестовая метрика для проверки работы Prometheus",
+				"unit": "",
+			}},
+		}
+		resp := map[string]interface{}{
+			"status": "success",
+			"data":   metadata,
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
 	// Простой health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
