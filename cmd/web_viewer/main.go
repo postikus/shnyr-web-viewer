@@ -845,11 +845,46 @@ func main() {
 		log.Printf("📊 URL: %s", r.URL.String())
 		log.Printf("📊 Method: %s", r.Method)
 		log.Printf("📊 Headers: %v", r.Header)
+
 		// Устанавливаем правильные заголовки для Prometheus
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+
 		promhttp.Handler().ServeHTTP(w, r)
 		log.Printf("📊 Метрики отправлены")
+	})
+
+	// Prometheus API endpoints для совместимости с Grafana
+	http.HandleFunc("/metrics/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/status/buildinfo от %s", r.RemoteAddr)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":{"version":"1.0.0","revision":"","branch":"","buildUser":"","buildDate":"","goVersion":"go1.22"}}`))
+	})
+
+	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+	})
+
+	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+	})
+
+	http.HandleFunc("/metrics/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/series от %s", r.RemoteAddr)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":[]}`))
 	})
 
 	// Простой health check endpoint
