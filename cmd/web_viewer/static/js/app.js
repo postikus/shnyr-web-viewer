@@ -365,9 +365,12 @@ function sendAction(action) {
 	.then(response => {
 		if (response.ok) {
 			console.log('Действие', action, 'успешно отправлено');
-			// Обновляем страницу через 1 секунду, чтобы показать новый статус
+			// Обновляем только статус через 1 секунду, без перезагрузки страницы
 			setTimeout(() => {
-				window.location.reload();
+				// Вызываем updateStatus если она доступна
+				if (typeof updateStatus === 'function') {
+					updateStatus();
+				}
 			}, 1000);
 		} else {
 			console.error('Ошибка при отправке действия:', response.status);
