@@ -59,6 +59,23 @@ var (
 		},
 		[]string{"category"},
 	)
+
+	// Временные метрики для графиков
+	goldCoinPriceHistory = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_price_history",
+			Help: "История цен gold coin по времени",
+		},
+		[]string{"category", "price_type", "timestamp"},
+	)
+
+	goldCoinPriceByTime = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gold_coin_price_by_time",
+			Help: "Цены gold coin с временными метками",
+		},
+		[]string{"category", "price_type"},
+	)
 )
 
 func init() {
@@ -68,6 +85,8 @@ func init() {
 	prometheus.MustRegister(goldCoinMinPrice)
 	prometheus.MustRegister(goldCoinMaxPrice)
 	prometheus.MustRegister(goldCoinPriceCount)
+	prometheus.MustRegister(goldCoinPriceHistory)
+	prometheus.MustRegister(goldCoinPriceByTime)
 
 	// Устанавливаем тестовую метрику
 	testMetric.Set(1.0)
@@ -166,6 +185,122 @@ func updateGoldCoinMetrics(db *sql.DB) {
 	}
 
 	log.Printf("✅ Обновлено %d метрик gold coin", metricsCount)
+}
+
+// updateGoldCoinTimeMetrics обновляет временные метрики для gold coin
+func updateGoldCoinTimeMetrics(db *sql.DB) {
+	log.Printf("🔄 Обновление временных метрик gold coin...")
+
+	query := `
+	WITH gold_coin_ocr AS (
+		SELECT DISTINCT ocr.id as ocr_id, ocr.created_at
+		FROM octopus.ocr_results ocr
+		INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
+		WHERE si.title = 'gold coin' 
+		  AND si.category = 'buy_consumables'
+	),
+	price_analysis AS (
+		SELECT 
+			gco.ocr_id,
+			gco.created_at,
+			si.id as structured_item_id,
+			si.title,
+			si.category,
+			si.price,
+			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
+		FROM gold_coin_ocr gco
+		INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
+		WHERE si.price IS NOT NULL 
+		  AND si.price != ''
+		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
+	),
+	top_3_prices AS (
+		SELECT 
+			ocr_id,
+			created_at,
+			title,
+			category,
+			price,
+			price_numeric,
+			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
+		FROM price_analysis
+	),
+	avg_min_3_prices AS (
+		SELECT 
+			ocr_id,
+			created_at,
+			title,
+			category,
+			COUNT(*) as prices_count,
+			AVG(price_numeric) as avg_min_3_prices,
+			MIN(price_numeric) as min_price,
+			MAX(price_numeric) as max_price_of_min_3
+		FROM top_3_prices
+		WHERE price_rank <= 3
+		GROUP BY ocr_id, created_at, title, category
+	)
+	SELECT 
+		category,
+		created_at,
+		COUNT(*) as total_records,
+		AVG(avg_min_3_prices) as avg_price,
+		MIN(min_price) as min_price,
+		MAX(max_price_of_min_3) as max_price,
+		SUM(prices_count) as total_prices
+	FROM avg_min_3_prices
+	GROUP BY category, created_at
+	ORDER BY category, created_at DESC
+	LIMIT 100
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("❌ Ошибка получения временных метрик gold coin: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	metricsCount := 0
+	for rows.Next() {
+		var category string
+		var createdAt string
+		var totalRecords int
+		var avgPrice, minPrice, maxPrice float64
+		var totalPrices int
+
+		err := rows.Scan(&category, &createdAt, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
+		if err != nil {
+			log.Printf("❌ Ошибка сканирования временных метрик: %v", err)
+			continue
+		}
+
+		// Парсим время
+		parsedTime, err := time.Parse("2006-01-02 15:04:05", createdAt)
+		if err != nil {
+			log.Printf("❌ Ошибка парсинга времени %s: %v", createdAt, err)
+			continue
+		}
+
+		timestamp := parsedTime.Format("2006-01-02T15:04:05Z")
+
+		// Обновляем временные метрики
+		goldCoinPriceHistory.WithLabelValues(category, "avg", timestamp).Set(avgPrice)
+		goldCoinPriceHistory.WithLabelValues(category, "min", timestamp).Set(minPrice)
+		goldCoinPriceHistory.WithLabelValues(category, "max", timestamp).Set(maxPrice)
+		goldCoinPriceHistory.WithLabelValues(category, "count", timestamp).Set(float64(totalPrices))
+
+		// Также обновляем метрики без timestamp для текущих значений
+		goldCoinPriceByTime.WithLabelValues(category, "avg").Set(avgPrice)
+		goldCoinPriceByTime.WithLabelValues(category, "min").Set(minPrice)
+		goldCoinPriceByTime.WithLabelValues(category, "max").Set(maxPrice)
+		goldCoinPriceByTime.WithLabelValues(category, "count").Set(float64(totalPrices))
+
+		log.Printf("📊 Обновлена временная метрика для категории %s в %s: avg=%.2f, min=%.2f, max=%.2f, count=%d",
+			category, timestamp, avgPrice, minPrice, maxPrice, totalPrices)
+		metricsCount++
+	}
+
+	log.Printf("✅ Обновлено %d временных метрик gold coin", metricsCount)
 }
 
 type StructuredItem struct {
@@ -898,6 +1033,7 @@ func main() {
 	go func() {
 		for {
 			updateGoldCoinMetrics(db)
+			updateGoldCoinTimeMetrics(db)
 			time.Sleep(30 * time.Second) // Обновляем каждые 30 секунд
 		}
 	}()
