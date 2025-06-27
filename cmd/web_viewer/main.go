@@ -20,6 +20,14 @@ import (
 
 // Prometheus метрики для отслеживания цен gold coin
 var (
+	// Тестовая метрика для проверки работы
+	testMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "shnyr_test_metric",
+			Help: "Тестовая метрика для проверки работы Prometheus",
+		},
+	)
+
 	goldCoinAvgPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_avg_min_3_prices",
@@ -55,14 +63,20 @@ var (
 
 func init() {
 	// Регистрируем метрики
+	prometheus.MustRegister(testMetric)
 	prometheus.MustRegister(goldCoinAvgPrice)
 	prometheus.MustRegister(goldCoinMinPrice)
 	prometheus.MustRegister(goldCoinMaxPrice)
 	prometheus.MustRegister(goldCoinPriceCount)
+
+	// Устанавливаем тестовую метрику
+	testMetric.Set(1.0)
 }
 
 // updateGoldCoinMetrics обновляет метрики для gold coin
 func updateGoldCoinMetrics(db *sql.DB) {
+	log.Printf("🔄 Обновление метрик gold coin...")
+
 	query := `
 	WITH gold_coin_ocr AS (
 		SELECT DISTINCT ocr.id as ocr_id
@@ -122,11 +136,12 @@ func updateGoldCoinMetrics(db *sql.DB) {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		log.Printf("Ошибка получения метрик gold coin: %v", err)
+		log.Printf("❌ Ошибка получения метрик gold coin: %v", err)
 		return
 	}
 	defer rows.Close()
 
+	metricsCount := 0
 	for rows.Next() {
 		var category string
 		var totalRecords int
@@ -135,7 +150,7 @@ func updateGoldCoinMetrics(db *sql.DB) {
 
 		err := rows.Scan(&category, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
 		if err != nil {
-			log.Printf("Ошибка сканирования метрик: %v", err)
+			log.Printf("❌ Ошибка сканирования метрик: %v", err)
 			continue
 		}
 
@@ -144,7 +159,13 @@ func updateGoldCoinMetrics(db *sql.DB) {
 		goldCoinMinPrice.WithLabelValues(category).Set(minPrice)
 		goldCoinMaxPrice.WithLabelValues(category).Set(maxPrice)
 		goldCoinPriceCount.WithLabelValues(category).Set(float64(totalPrices))
+
+		log.Printf("📊 Обновлена метрика для категории %s: avg=%.2f, min=%.2f, max=%.2f, count=%d",
+			category, avgPrice, minPrice, maxPrice, totalPrices)
+		metricsCount++
 	}
+
+	log.Printf("✅ Обновлено %d метрик gold coin", metricsCount)
 }
 
 type StructuredItem struct {
@@ -814,7 +835,12 @@ func main() {
 	})
 
 	// Endpoint для Prometheus метрик
-	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics от %s", r.RemoteAddr)
+		log.Printf("📊 User-Agent: %s", r.UserAgent())
+		promhttp.Handler().ServeHTTP(w, r)
+		log.Printf("📊 Метрики отправлены")
+	})
 
 	// Простой health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
