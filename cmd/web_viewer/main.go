@@ -374,21 +374,33 @@ func main() {
 		host = "0.0.0.0"
 	}
 
+	log.Printf("🚀 Запуск ШНЫРЬ v0.1")
+	log.Printf("📋 Переменные окружения:")
+	log.Printf("   PORT: %s", port)
+	log.Printf("   HOST: %s", host)
+	log.Printf("   DB_HOST: %s", os.Getenv("DB_HOST"))
+	log.Printf("   DB_PORT: %s", os.Getenv("DB_PORT"))
+	log.Printf("   DB_USER: %s", os.Getenv("DB_USER"))
+	log.Printf("   DB_NAME: %s", os.Getenv("DB_NAME"))
+
 	// Подключаемся к базе данных
 	dbDSN := getDatabaseDSN()
+	log.Printf("🔗 Подключение к базе данных: %s", dbDSN)
+
 	db, err := sql.Open("mysql", dbDSN)
 	if err != nil {
-		log.Fatalf("Ошибка подключения к базе данных: %v", err)
+		log.Fatalf("❌ Ошибка подключения к базе данных: %v", err)
 	}
 	defer db.Close()
 
 	// Проверяем подключение
+	log.Printf("🔍 Проверка подключения к базе данных...")
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Ошибка проверки подключения к базе данных: %v", err)
+		log.Fatalf("❌ Ошибка проверки подключения к базе данных: %v", err)
 	}
 
-	log.Printf("Успешно подключились к базе данных: %s", dbDSN)
-	log.Printf("Запускаем сервер на %s:%s", host, port)
+	log.Printf("✅ Успешно подключились к базе данных")
+	log.Printf("🌐 Запускаем сервер на %s:%s", host, port)
 
 	// Настройка статических файлов
 	staticPath := "static"
@@ -784,6 +796,13 @@ func main() {
 
 	// Endpoint для Prometheus метрик
 	http.Handle("/metrics", promhttp.Handler())
+
+	// Простой health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"status": "ok", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
+	})
 
 	// Запускаем периодическое обновление метрик
 	go func() {
