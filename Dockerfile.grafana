@@ -11,7 +11,7 @@ RUN mkdir -p /etc/grafana/provisioning/datasources
 COPY grafana-dashboard.json /etc/grafana/provisioning/dashboards/gold-coin-dashboard.json
 
 # Создаем конфигурацию для автоматической загрузки дашборда
-COPY dashboard-provider.yaml /etc/grafana/provisioning/dashboards/dashboard-provider.yaml
+COPY dashboard-provider.yaml /etc/grafana/provisioning/dashboards/
 
 # Копируем конфигурацию источника данных для Prometheus
 COPY prometheus-datasource.yaml /etc/grafana/provisioning/datasources/prometheus-datasource.yaml
