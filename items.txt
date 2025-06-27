@@ -6,14 +6,37 @@
 
 # Покупай! (The list of goods for sale) - обрабатываются ПЕРВЫМИ
 # Consumables для покупки
-gold coin:1000
-top grade 86:50000
-bless enchant S-:100000
-ancient adena:1000
+gold coin:115000
+top grade 86:5500000
+bless enchant  weapon S:40000000
+bless enchant  weapon S:8000000
+ancient adena:5
+
 
 ---
 
 # Equipment для продажи
+Cyclic Cane:350000000
+Demitelum:4000000000
+Veniplant Sword:18000000
+Archangel sword:20000000000
+Devilish Maul:18000000
+Doubletop Spear:90000000
+Feather eye blade:13000000
+Jade Claw:10000000000
+Lawa Saw:8000000000
+Recurve Throne Bow:20000000000
+Sacredium:25000000000
+Skull Carnium Bow:12000000
+Vigwik Axe: 70000000
+Core:15000000000
+Baium:35000000000
+Valakas:50000000000
+Antharas:50000000000
+Ant queen:17000000000
+Earring of orfen:7000000000
+Bless zaken: 3500000000
+Rising:150000000
 ===
 
 # Продавай! (The list of goods for buy) - обрабатываются ВТОРЫМИ
@@ -26,4 +49,3 @@ ancient adena:1000
 ---
 
 # Equipment для продажи
-

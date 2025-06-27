@@ -12,6 +12,20 @@
 - `docker-compose.yml` — оркестрация всех сервисов
 - `prometheus.yml` — конфигурация Prometheus
 
+## Автоматическая настройка Grafana
+
+### Автоматически создается:
+1. **Источник данных MySQL** — подключение к БД `octopus`
+2. **Дашборд "Gold Coin Analysis Dashboard"** с 3 панелями:
+   - **Gold Coin - Average of 3 Min Prices** — среднее из 3 минимальных цен
+   - **Gold Coin - All Prices** — все цены gold coin
+   - **Gold Coin - Daily Statistics** — статистика по дням
+
+### Конфигурационные файлы:
+- `grafana/provisioning/datasources/mysql.yml` — настройка MySQL источника данных
+- `grafana/provisioning/dashboards/dashboard.yml` — настройка автозагрузки дашбордов
+- `grafana/dashboards/gold-coin-dashboard.json` — JSON дашборда
+
 ## Быстрый старт (локально или на Render)
 
 1. **Склонируйте репозиторий**
@@ -21,6 +35,7 @@
    - `Dockerfile.grafana` (для Grafana)
    - `docker-compose.yml`
    - `prometheus.yml`
+   - `grafana/` папка с конфигурациями
 
 3. **Запустите всё через Docker Compose**
 
@@ -33,30 +48,27 @@ docker-compose up --build
    - Prometheus: http://localhost:9090
    - Grafana: http://localhost:3000 (логин: admin/admin)
 
-5. **Добавьте Prometheus как источник данных в Grafana**
-   - URL: `http://prometheus:9090`
+5. **Дашборд готов!**
+   - Автоматически создан источник данных MySQL
+   - Автоматически создан дашборд "Gold Coin Analysis Dashboard"
+   - Все панели настроены и готовы к работе
 
-6. **Создайте дашборд в Grafana**
-   - Метрики: `gold_coin_price`, `gold_coin_min_price`, `gold_coin_max_price`, `gold_coin_timestamp`
-   - Используйте label `ocr_id` или `title` для фильтрации
+## Структура дашборда
 
-## Пример запроса для графика в Grafana
+### Панель 1: Average of 3 Min Prices
+- Показывает среднее из 3 минимальных цен для каждого OCR результата
+- Использует сложный SQL запрос с CTE
+- Поле: `value` (среднее значение)
 
-```
-gold_coin_price
-```
+### Панель 2: All Prices
+- Показывает все цены gold coin
+- Простой график всех найденных цен
+- Поле: `price_value`
 
-или
-
-```
-gold_coin_min_price
-```
-
-или
-
-```
-gold_coin_max_price
-```
+### Панель 3: Daily Statistics
+- Статистика по дням: количество OCR, количество предметов, средние/мин/макс цены
+- Группировка по дням
+- Поля: `ocr_count`, `items_count`, `avg_price`, `min_price`, `max_price`
 
 ## Деплой на Render
 
@@ -66,15 +78,31 @@ gold_coin_max_price
    - `Dockerfile.grafana` (для Grafana)
    - `docker-compose.yml`
    - `prometheus.yml`
+   - `grafana/` папка с конфигурациями
 3. Render автоматически поднимет все сервисы
 4. Откройте Grafana по публичному адресу Render
+5. **Дашборд уже создан и готов к работе!**
 
 ## Структура Dockerfile.grafana
 
 - Базовый образ: `grafana/grafana:latest`
 - Порт: 3000
 - Логин по умолчанию: admin/admin
-- Готов для кастомизации (раскомментируйте строки для добавления дашбордов)
+- Автоматическая настройка источников данных и дашбордов
+- Копирование всех конфигураций при сборке
+
+## Дополнительные возможности
+
+### Ручное добавление панелей
+Если нужно добавить новые панели:
+1. Откройте дашборд в Grafana
+2. Добавьте новую панель
+3. Используйте SQL запросы из `grafana-gold-coin-query.sql` или `grafana-gold-coin-simple.sql`
+
+### Изменение дашборда
+1. Отредактируйте `grafana/dashboards/gold-coin-dashboard.json`
+2. Пересоберите контейнер Grafana
+3. Дашборд обновится автоматически
 
 ---
 
@@ -87,5 +115,5 @@ gold_coin_max_price
 
 **Авторы:**
 - web_viewer: ваш Go сервис
-- Grafana: собранная из Dockerfile.grafana
+- Grafana: собранная из Dockerfile.grafana с автоматической настройкой
 - Prometheus: официальный образ 
