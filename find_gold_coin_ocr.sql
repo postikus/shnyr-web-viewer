@@ -111,22 +111,28 @@ avg_min_3_prices AS (
         AVG(price_numeric) as avg_min_3_prices,
         MIN(price_numeric) as min_price,
         MAX(price_numeric) as max_price_of_min_3,
-        GROUP_CONCAT(price ORDER BY price_numeric ASC SEPARATOR ', ') as min_3_prices
+        GROUP_CONCAT(price ORDER BY price_numeric ASC SEPARATOR ', ') as min_3_prices,
+        -- owner/count для min_price
+        SUBSTRING_INDEX(GROUP_CONCAT(owner ORDER BY price_numeric ASC SEPARATOR ','), ',', 1) as min_price_owner,
+        SUBSTRING_INDEX(GROUP_CONCAT(count ORDER BY price_numeric ASC SEPARATOR ','), ',', 1) as min_price_count,
+        -- owner/count для max_price_of_min_3
+        SUBSTRING_INDEX(SUBSTRING_INDEX(GROUP_CONCAT(owner ORDER BY price_numeric ASC SEPARATOR ','), ',', 3), ',', -1) as max_price_owner,
+        SUBSTRING_INDEX(SUBSTRING_INDEX(GROUP_CONCAT(count ORDER BY price_numeric ASC SEPARATOR ','), ',', 3), ',', -1) as max_price_count
     FROM top_3_prices
     WHERE price_rank <= 3
     GROUP BY ocr_id, title, category
 )
 SELECT 
-    am3p.ocr_id,
     am3p.title,
     am3p.category,
-    am3p.prices_count,
     am3p.avg_min_3_prices,
     am3p.min_price,
+    am3p.min_price_owner,
+    am3p.min_price_count,
     am3p.max_price_of_min_3,
-    am3p.min_3_prices,
-    ocr.created_at,
-    ocr.image_path
+    am3p.max_price_owner,
+    am3p.max_price_count,
+    ocr.created_at
 FROM avg_min_3_prices am3p
 INNER JOIN octopus.ocr_results ocr ON am3p.ocr_id = ocr.id
 ORDER BY ocr.created_at DESC; 
