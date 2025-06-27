@@ -434,6 +434,10 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Логируем все запросы для диагностики
+		log.Printf("🌐 Запрос к %s от %s", r.URL.Path, r.RemoteAddr)
+		log.Printf("🌐 User-Agent: %s", r.UserAgent())
+
 		// Получаем параметры пагинации и поиска
 		pageStr := r.URL.Query().Get("page")
 		searchQuery := r.URL.Query().Get("search")
@@ -838,11 +842,12 @@ func main() {
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Запрос к /metrics от %s", r.RemoteAddr)
 		log.Printf("📊 User-Agent: %s", r.UserAgent())
-
+		log.Printf("📊 URL: %s", r.URL.String())
+		log.Printf("📊 Method: %s", r.Method)
+		log.Printf("📊 Headers: %v", r.Header)
 		// Устанавливаем правильные заголовки для Prometheus
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		promhttp.Handler().ServeHTTP(w, r)
 		log.Printf("📊 Метрики отправлены")
 	})
