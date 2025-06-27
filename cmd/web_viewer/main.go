@@ -20,14 +20,6 @@ import (
 
 // Prometheus метрики для отслеживания цен gold coin
 var (
-	// Тестовая метрика для проверки работы
-	testMetric = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "shnyr_test_metric",
-			Help: "Тестовая метрика для проверки работы Prometheus",
-		},
-	)
-
 	goldCoinAvgPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_avg_min_3_prices",
@@ -59,43 +51,18 @@ var (
 		},
 		[]string{"category"},
 	)
-
-	// Временные метрики для графиков
-	goldCoinPriceHistory = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_price_history",
-			Help: "История цен gold coin по времени",
-		},
-		[]string{"category", "price_type", "timestamp"},
-	)
-
-	goldCoinPriceByTime = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_price_by_time",
-			Help: "Цены gold coin с временными метками",
-		},
-		[]string{"category", "price_type"},
-	)
 )
 
 func init() {
 	// Регистрируем метрики
-	prometheus.MustRegister(testMetric)
 	prometheus.MustRegister(goldCoinAvgPrice)
 	prometheus.MustRegister(goldCoinMinPrice)
 	prometheus.MustRegister(goldCoinMaxPrice)
 	prometheus.MustRegister(goldCoinPriceCount)
-	prometheus.MustRegister(goldCoinPriceHistory)
-	prometheus.MustRegister(goldCoinPriceByTime)
-
-	// Устанавливаем тестовую метрику
-	testMetric.Set(1.0)
 }
 
 // updateGoldCoinMetrics обновляет метрики для gold coin
 func updateGoldCoinMetrics(db *sql.DB) {
-	log.Printf("🔄 Обновление метрик gold coin...")
-
 	query := `
 	WITH gold_coin_ocr AS (
 		SELECT DISTINCT ocr.id as ocr_id
@@ -155,12 +122,11 @@ func updateGoldCoinMetrics(db *sql.DB) {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		log.Printf("❌ Ошибка получения метрик gold coin: %v", err)
+		log.Printf("Ошибка получения метрик gold coin: %v", err)
 		return
 	}
 	defer rows.Close()
 
-	metricsCount := 0
 	for rows.Next() {
 		var category string
 		var totalRecords int
@@ -169,7 +135,7 @@ func updateGoldCoinMetrics(db *sql.DB) {
 
 		err := rows.Scan(&category, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
 		if err != nil {
-			log.Printf("❌ Ошибка сканирования метрик: %v", err)
+			log.Printf("Ошибка сканирования метрик: %v", err)
 			continue
 		}
 
@@ -178,129 +144,7 @@ func updateGoldCoinMetrics(db *sql.DB) {
 		goldCoinMinPrice.WithLabelValues(category).Set(minPrice)
 		goldCoinMaxPrice.WithLabelValues(category).Set(maxPrice)
 		goldCoinPriceCount.WithLabelValues(category).Set(float64(totalPrices))
-
-		log.Printf("📊 Обновлена метрика для категории %s: avg=%.2f, min=%.2f, max=%.2f, count=%d",
-			category, avgPrice, minPrice, maxPrice, totalPrices)
-		metricsCount++
 	}
-
-	log.Printf("✅ Обновлено %d метрик gold coin", metricsCount)
-}
-
-// updateGoldCoinTimeMetrics обновляет временные метрики для gold coin
-func updateGoldCoinTimeMetrics(db *sql.DB) {
-	log.Printf("🔄 Обновление временных метрик gold coin...")
-
-	query := `
-	WITH gold_coin_ocr AS (
-		SELECT DISTINCT ocr.id as ocr_id, ocr.created_at
-		FROM octopus.ocr_results ocr
-		INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
-		WHERE si.title = 'gold coin' 
-		  AND si.category = 'buy_consumables'
-	),
-	price_analysis AS (
-		SELECT 
-			gco.ocr_id,
-			gco.created_at,
-			si.id as structured_item_id,
-			si.title,
-			si.category,
-			si.price,
-			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
-		FROM gold_coin_ocr gco
-		INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
-		WHERE si.price IS NOT NULL 
-		  AND si.price != ''
-		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
-	),
-	top_3_prices AS (
-		SELECT 
-			ocr_id,
-			created_at,
-			title,
-			category,
-			price,
-			price_numeric,
-			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
-		FROM price_analysis
-	),
-	avg_min_3_prices AS (
-		SELECT 
-			ocr_id,
-			created_at,
-			title,
-			category,
-			COUNT(*) as prices_count,
-			AVG(price_numeric) as avg_min_3_prices,
-			MIN(price_numeric) as min_price,
-			MAX(price_numeric) as max_price_of_min_3
-		FROM top_3_prices
-		WHERE price_rank <= 3
-		GROUP BY ocr_id, created_at, title, category
-	)
-	SELECT 
-		category,
-		created_at,
-		COUNT(*) as total_records,
-		AVG(avg_min_3_prices) as avg_price,
-		MIN(min_price) as min_price,
-		MAX(max_price_of_min_3) as max_price,
-		SUM(prices_count) as total_prices
-	FROM avg_min_3_prices
-	GROUP BY category, created_at
-	ORDER BY category, created_at DESC
-	LIMIT 100
-	`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		log.Printf("❌ Ошибка получения временных метрик gold coin: %v", err)
-		return
-	}
-	defer rows.Close()
-
-	metricsCount := 0
-	for rows.Next() {
-		var category string
-		var createdAt string
-		var totalRecords int
-		var avgPrice, minPrice, maxPrice float64
-		var totalPrices int
-
-		err := rows.Scan(&category, &createdAt, &totalRecords, &avgPrice, &minPrice, &maxPrice, &totalPrices)
-		if err != nil {
-			log.Printf("❌ Ошибка сканирования временных метрик: %v", err)
-			continue
-		}
-
-		// Парсим время
-		parsedTime, err := time.Parse("2006-01-02 15:04:05", createdAt)
-		if err != nil {
-			log.Printf("❌ Ошибка парсинга времени %s: %v", createdAt, err)
-			continue
-		}
-
-		timestamp := parsedTime.Format("2006-01-02T15:04:05Z")
-
-		// Обновляем временные метрики
-		goldCoinPriceHistory.WithLabelValues(category, "avg", timestamp).Set(avgPrice)
-		goldCoinPriceHistory.WithLabelValues(category, "min", timestamp).Set(minPrice)
-		goldCoinPriceHistory.WithLabelValues(category, "max", timestamp).Set(maxPrice)
-		goldCoinPriceHistory.WithLabelValues(category, "count", timestamp).Set(float64(totalPrices))
-
-		// Также обновляем метрики без timestamp для текущих значений
-		goldCoinPriceByTime.WithLabelValues(category, "avg").Set(avgPrice)
-		goldCoinPriceByTime.WithLabelValues(category, "min").Set(minPrice)
-		goldCoinPriceByTime.WithLabelValues(category, "max").Set(maxPrice)
-		goldCoinPriceByTime.WithLabelValues(category, "count").Set(float64(totalPrices))
-
-		log.Printf("📊 Обновлена временная метрика для категории %s в %s: avg=%.2f, min=%.2f, max=%.2f, count=%d",
-			category, timestamp, avgPrice, minPrice, maxPrice, totalPrices)
-		metricsCount++
-	}
-
-	log.Printf("✅ Обновлено %d временных метрик gold coin", metricsCount)
 }
 
 type StructuredItem struct {
@@ -568,11 +412,143 @@ func main() {
 	fs := http.FileServer(http.Dir(staticPath))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Логируем все запросы для диагностики
-		log.Printf("🌐 Запрос к %s от %s", r.URL.Path, r.RemoteAddr)
-		log.Printf("🌐 User-Agent: %s", r.UserAgent())
+	// Обработчик для получения статуса в формате JSON
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
 
+		// Получаем текущий статус
+		status, err := getCurrentStatus(db)
+		if err != nil {
+			log.Printf("Ошибка получения статуса: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Формируем JSON ответ
+		response := map[string]interface{}{
+			"status":    status.CurrentStatus,
+			"updatedAt": status.UpdatedAt,
+		}
+
+		// Кодируем в JSON
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Ошибка кодирования JSON: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	// Endpoint для Prometheus метрик
+	http.Handle("/metrics", promhttp.Handler())
+
+	// Простой health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"status": "ok", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
+	})
+
+	// Обработчик для кнопки Start
+	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "start", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия start: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на start
+		err = updateStatus(db, "start")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Stop
+	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "stop", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия stop: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на stop
+		err = updateStatus(db, "stop")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Обработчик для кнопки Restart
+	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Помечаем последнее невыполненное действие как выполненное
+		err := updateLatestPendingAction(db)
+		if err != nil {
+			log.Printf("Ошибка обновления последнего действия: %v", err)
+		}
+
+		err = addActionWithExecuted(db, "restart", false)
+		if err != nil {
+			log.Printf("Ошибка добавления действия restart: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		// Обновляем статус на restart
+		err = updateStatus(db, "restart")
+		if err != nil {
+			log.Printf("Ошибка обновления статуса: %v", err)
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
+	// Основной обработчик для веб-интерфейса (должен быть последним)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Получаем параметры пагинации и поиска
 		pageStr := r.URL.Query().Get("page")
 		searchQuery := r.URL.Query().Get("search")
@@ -848,192 +824,10 @@ func main() {
 		renderTemplate(w, pageData)
 	})
 
-	// Обработчик для кнопки Start
-	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "start", false)
-		if err != nil {
-			log.Printf("Ошибка добавления действия start: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на start
-		err = updateStatus(db, "start")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-		}
-
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
-
-	// Обработчик для кнопки Stop
-	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "stop", false)
-		if err != nil {
-			log.Printf("Ошибка добавления действия stop: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на stop
-		err = updateStatus(db, "stop")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-		}
-
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
-
-	// Обработчик для кнопки Restart
-	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "restart", false)
-		if err != nil {
-			log.Printf("Ошибка добавления действия restart: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Обновляем статус на restart
-		err = updateStatus(db, "restart")
-		if err != nil {
-			log.Printf("Ошибка обновления статуса: %v", err)
-		}
-
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
-
-	// Обработчик для получения статуса в формате JSON
-	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", 405)
-			return
-		}
-
-		// Получаем текущий статус
-		status, err := getCurrentStatus(db)
-		if err != nil {
-			log.Printf("Ошибка получения статуса: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		// Устанавливаем заголовки для JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Формируем JSON ответ
-		response := map[string]interface{}{
-			"status":    status.CurrentStatus,
-			"updatedAt": status.UpdatedAt,
-		}
-
-		// Кодируем в JSON
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("Ошибка кодирования JSON: %v", err)
-			http.Error(w, "Internal server error", 500)
-			return
-		}
-
-		w.Write(jsonData)
-	})
-
-	// Endpoint для Prometheus метрик
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics от %s", r.RemoteAddr)
-		log.Printf("📊 User-Agent: %s", r.UserAgent())
-		log.Printf("📊 URL: %s", r.URL.String())
-		log.Printf("📊 Method: %s", r.Method)
-		log.Printf("📊 Headers: %v", r.Header)
-
-		// Устанавливаем правильные заголовки для Prometheus
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		promhttp.Handler().ServeHTTP(w, r)
-		log.Printf("📊 Метрики отправлены")
-	})
-
-	// Prometheus API endpoints для совместимости с Grafana
-	http.HandleFunc("/metrics/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/status/buildinfo от %s", r.RemoteAddr)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":{"version":"1.0.0","revision":"","branch":"","buildUser":"","buildDate":"","goVersion":"go1.22"}}`))
-	})
-
-	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
-	})
-
-	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
-	})
-
-	http.HandleFunc("/metrics/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/series от %s", r.RemoteAddr)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":[]}`))
-	})
-
-	// Простой health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte(`{"status": "ok", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
-	})
-
 	// Запускаем периодическое обновление метрик
 	go func() {
 		for {
 			updateGoldCoinMetrics(db)
-			updateGoldCoinTimeMetrics(db)
 			time.Sleep(30 * time.Second) // Обновляем каждые 30 секунд
 		}
 	}()
