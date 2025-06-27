@@ -568,9 +568,9 @@ func main() {
 
 			dataQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
 		} else {
-			// Без поиска
+			// Без поиска - оптимизированный запрос без image_data
 			countQuery = "SELECT COUNT(*) FROM ocr_results"
-			dataQuery = `SELECT id, image_path, image_data, ocr_text, debug_info, json_data, raw_text, created_at FROM ocr_results ORDER BY created_at DESC LIMIT ? OFFSET ?`
+			dataQuery = `SELECT ocr.id, ocr.image_path, ocr.ocr_text, ocr.debug_info, ocr.json_data, ocr.raw_text, ocr.created_at FROM ocr_results ocr ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
 		}
 
 		// Получаем общее количество записей
@@ -615,23 +615,42 @@ func main() {
 		var results []OCRResult
 		for rows.Next() {
 			var res OCRResult
-			if err := rows.Scan(&res.ID, &res.ImagePath, &res.ImageData, &res.OCRText, &res.DebugInfo, &res.JSONData, &res.RawText, &res.CreatedAt); err != nil {
+			if err := rows.Scan(&res.ID, &res.ImagePath, &res.OCRText, &res.DebugInfo, &res.JSONData, &res.RawText, &res.CreatedAt); err != nil {
 				continue
 			}
+			results = append(results, res)
+		}
 
-			// Загружаем структурированные данные для этого OCR результата
-			itemRows, err := db.Query(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at FROM structured_items WHERE ocr_result_id = ? ORDER BY created_at`, res.ID)
+		// Загружаем структурированные данные одним запросом для всех результатов
+		if len(results) > 0 {
+			var resultIDs []string
+			for _, res := range results {
+				resultIDs = append(resultIDs, strconv.Itoa(res.ID))
+			}
+
+			itemsQuery := fmt.Sprintf(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at 
+				FROM structured_items 
+				WHERE ocr_result_id IN (%s) 
+				ORDER BY ocr_result_id, created_at`, strings.Join(resultIDs, ","))
+
+			itemRows, err := db.Query(itemsQuery)
 			if err == nil {
 				defer itemRows.Close()
+
+				// Группируем items по ocr_result_id
+				itemsByOCRID := make(map[int][]StructuredItem)
 				for itemRows.Next() {
 					var item StructuredItem
 					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
-						res.Items = append(res.Items, item)
+						itemsByOCRID[item.OCRResultID] = append(itemsByOCRID[item.OCRResultID], item)
 					}
 				}
-			}
 
-			results = append(results, res)
+				// Присваиваем items к соответствующим результатам
+				for i := range results {
+					results[i].Items = itemsByOCRID[results[i].ID]
+				}
+			}
 		}
 
 		// Получаем статус и действия
