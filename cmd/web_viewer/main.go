@@ -866,13 +866,10 @@ func main() {
 	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
 		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
-
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		// Простая обработка запросов к нашим метрикам
-		if strings.Contains(query, "gold_coin") {
+		if strings.HasPrefix(query, "gold_coin_avg_min_3_prices") {
 			response := `{
 				"status": "success",
 				"data": {
@@ -890,22 +887,19 @@ func main() {
 			}`
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(response))
-		} else {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+			return
 		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 	})
 
 	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
 		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
-
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		// Простая обработка range запросов
-		if strings.Contains(query, "gold_coin") {
+		if strings.HasPrefix(query, "gold_coin_avg_min_3_prices") {
 			response := `{
 				"status": "success",
 				"data": {
@@ -927,10 +921,10 @@ func main() {
 			}`
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(response))
-		} else {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+			return
 		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
 	})
 
 	http.HandleFunc("/metrics/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
