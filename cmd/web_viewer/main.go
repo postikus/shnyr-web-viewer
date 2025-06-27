@@ -450,6 +450,293 @@ func main() {
 	// Endpoint для Prometheus метрик
 	http.Handle("/metrics", promhttp.Handler())
 
+	// Prometheus API endpoints для совместимости с Grafana
+	http.HandleFunc("/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		query := r.URL.Query().Get("query")
+		if query == "" {
+			http.Error(w, "Missing query parameter", 400)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем пустой результат для совместимости
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"resultType": "vector",
+				"result":     []interface{}{},
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		query := r.URL.Query().Get("query")
+		if query == "" {
+			http.Error(w, "Missing query parameter", 400)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем пустой результат для совместимости
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"resultType": "matrix",
+				"result":     []interface{}{},
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/label/__name__/values", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем список доступных метрик
+		response := map[string]interface{}{
+			"status": "success",
+			"data": []string{
+				"gold_coin_avg_min_3_prices",
+				"gold_coin_min_price",
+				"gold_coin_max_price_of_min_3",
+				"gold_coin_prices_count",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем список доступных лейблов
+		response := map[string]interface{}{
+			"status": "success",
+			"data": []string{
+				"__name__",
+				"category",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/label/category/values", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем список доступных категорий
+		response := map[string]interface{}{
+			"status": "success",
+			"data": []string{
+				"buy_consumables",
+				"buy_equipment",
+				"sell_consumables",
+				"sell_equipment",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/targets", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем информацию о целях
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"activeTargets":  []interface{}{},
+				"droppedTargets": []interface{}{},
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/status/config", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем конфигурацию
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"yaml": "# Prometheus configuration\n",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/status/flags", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем флаги
+		response := map[string]interface{}{
+			"status": "success",
+			"data":   map[string]interface{}{},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/status/runtimeinfo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем информацию о runtime
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"startTime": time.Now().Format(time.RFC3339),
+				"CWD":       "/app",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
+	http.HandleFunc("/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Устанавливаем заголовки для JSON
+		w.Header().Set("Content-Type", "application/json")
+
+		// Возвращаем информацию о сборке
+		response := map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"version":   "1.0.0",
+				"revision":  "development",
+				"branch":    "main",
+				"buildUser": "shnyr",
+				"buildDate": time.Now().Format(time.RFC3339),
+				"goVersion": "1.23",
+			},
+		}
+
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+			return
+		}
+
+		w.Write(jsonData)
+	})
+
 	// Простой health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
