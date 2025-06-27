@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 )
 
 // Prometheus метрики для отслеживания цен gold coin
@@ -864,64 +866,82 @@ func main() {
 	})
 
 	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
-		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		if strings.HasPrefix(query, "gold_coin_avg_min_3_prices") {
-			response := `{
-				"status": "success",
-				"data": {
-					"resultType": "vector",
-					"result": [
-						{
-							"metric": {
-								"__name__": "gold_coin_avg_min_3_prices",
-								"category": "buy_consumables"
-							},
-							"value": [1711540800, "126848"]
+
+		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(\{.*\})?$`)
+		matches := re.FindStringSubmatch(query)
+		if len(matches) > 0 {
+			metricName := matches[1]
+			if metricName == "gold_coin_avg_min_3_prices" {
+				ch := make(chan prometheus.Metric)
+				go func() {
+					goldCoinAvgPrice.Collect(ch)
+					close(ch)
+				}()
+				var results []string
+				for metric := range ch {
+					dto := &io_prometheus_client.Metric{}
+					if err := metric.Write(dto); err != nil {
+						continue
+					}
+					category := ""
+					for _, label := range dto.Label {
+						if label.GetName() == "category" {
+							category = label.GetValue()
 						}
-					]
+					}
+					value := dto.GetGauge().GetValue()
+					results = append(results, fmt.Sprintf(`{"metric":{"__name__":"gold_coin_avg_min_3_prices","category":"%s"},"value":[%d,"%f"]}`, category, int(time.Now().Unix()), value))
 				}
-			}`
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
-			return
+				response := fmt.Sprintf(`{"status":"success","data":{"resultType":"vector","result":[%s]}}`, strings.Join(results, ","))
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(response))
+				return
+			}
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 	})
 
 	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
-		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		if strings.HasPrefix(query, "gold_coin_avg_min_3_prices") {
-			response := `{
-				"status": "success",
-				"data": {
-					"resultType": "matrix",
-					"result": [
-						{
-							"metric": {
-								"__name__": "gold_coin_avg_min_3_prices",
-								"category": "buy_consumables"
-							},
-							"values": [
-								[1711540800, "126848"],
-								[1711540815, "126848"],
-								[1711540830, "126848"]
-							]
+
+		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(\{.*\})?$`)
+		matches := re.FindStringSubmatch(query)
+		if len(matches) > 0 {
+			metricName := matches[1]
+			if metricName == "gold_coin_avg_min_3_prices" {
+				ch := make(chan prometheus.Metric)
+				go func() {
+					goldCoinAvgPrice.Collect(ch)
+					close(ch)
+				}()
+				var results []string
+				for metric := range ch {
+					dto := &io_prometheus_client.Metric{}
+					if err := metric.Write(dto); err != nil {
+						continue
+					}
+					category := ""
+					for _, label := range dto.Label {
+						if label.GetName() == "category" {
+							category = label.GetValue()
 						}
-					]
+					}
+					value := dto.GetGauge().GetValue()
+					// Для примера возвращаем 3 точки с разными timestamp
+					values := fmt.Sprintf("[[%d,\"%f\"],[%d,\"%f\"],[%d,\"%f\"]]", int(time.Now().Unix())-30, value, int(time.Now().Unix())-15, value, int(time.Now().Unix()), value)
+					results = append(results, fmt.Sprintf(`{"metric":{"__name__":"gold_coin_avg_min_3_prices","category":"%s"},"values":%s}`, category, values))
 				}
-			}`
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
-			return
+				response := fmt.Sprintf(`{"status":"success","data":{"resultType":"matrix","result":[%s]}}`, strings.Join(results, ","))
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(response))
+				return
+			}
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
