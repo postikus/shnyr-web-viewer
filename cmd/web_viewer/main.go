@@ -865,18 +865,72 @@ func main() {
 
 	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
+		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
+
+		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+
+		// Простая обработка запросов к нашим метрикам
+		if strings.Contains(query, "gold_coin") {
+			response := `{
+				"status": "success",
+				"data": {
+					"resultType": "vector",
+					"result": [
+						{
+							"metric": {
+								"__name__": "gold_coin_avg_min_3_prices",
+								"category": "buy_consumables"
+							},
+							"value": [1711540800, "126848"]
+						}
+					]
+				}
+			}`
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(response))
+		} else {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
+		}
 	})
 
 	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
+		log.Printf("📊 Query: %s", r.URL.Query().Get("query"))
+
+		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+
+		// Простая обработка range запросов
+		if strings.Contains(query, "gold_coin") {
+			response := `{
+				"status": "success",
+				"data": {
+					"resultType": "matrix",
+					"result": [
+						{
+							"metric": {
+								"__name__": "gold_coin_avg_min_3_prices",
+								"category": "buy_consumables"
+							},
+							"values": [
+								[1711540800, "126848"],
+								[1711540815, "126848"],
+								[1711540830, "126848"]
+							]
+						}
+					]
+				}
+			}`
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(response))
+		} else {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+		}
 	})
 
 	http.HandleFunc("/metrics/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
@@ -884,7 +938,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":[]}`))
+		w.Write([]byte(`{"status":"success","data":[{"__name__":"gold_coin_avg_min_3_prices","category":"buy_consumables"}]}`))
 	})
 
 	// Простой health check endpoint
