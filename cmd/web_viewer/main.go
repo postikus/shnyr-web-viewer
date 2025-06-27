@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -411,6 +411,14 @@ func parsePromQL(query string) (string, []string, error) {
 	return metricName, labels, nil
 }
 
+// logMiddleware логирует все HTTP запросы
+func logMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🌐 HTTP Request: %s %s - User-Agent: %s", r.Method, r.URL.Path, r.UserAgent())
+		next.ServeHTTP(w, r)
+	}
+}
+
 func main() {
 	// Получаем порт из переменной окружения
 	port := os.Getenv("PORT")
@@ -463,7 +471,7 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Обработчик для получения статуса в формате JSON
-	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/status", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			http.Error(w, "Method not allowed", 405)
 			return
@@ -495,19 +503,19 @@ func main() {
 		}
 
 		w.Write(jsonData)
-	})
+	}))
 
 	// Endpoint для Prometheus метрик - обрабатывает все пути начинающиеся с /metrics/
-	http.HandleFunc("/metrics/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/metrics/", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /metrics/ called - %s %s", r.Method, r.URL.Path)
 		promhttp.Handler().ServeHTTP(w, r)
-	})
+	}))
 
 	// Также оставляем точный путь /metrics для совместимости
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", logMiddleware(promhttp.Handler().ServeHTTP))
 
 	// Prometheus API endpoints для совместимости с Grafana
-	http.HandleFunc("/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/query", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		// Добавляем CORS заголовки
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -618,18 +626,50 @@ func main() {
 
 		log.Printf("API: /api/v1/query - Success, returned %d results", len(result))
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/query_range", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/query_range called - %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
 
-		if r.Method != "GET" {
+		if r.Method != "GET" && r.Method != "POST" {
 			log.Printf("API: /api/v1/query_range - Method not allowed: %s", r.Method)
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
-		query := r.URL.Query().Get("query")
+		// Для POST запросов читаем параметры из тела запроса
+		var query string
+		if r.Method == "POST" {
+			// Читаем тело запроса
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("API: /api/v1/query_range - Error reading body: %v", err)
+				http.Error(w, "Error reading request body", 400)
+				return
+			}
+			defer r.Body.Close()
+
+			// Парсим JSON из тела запроса
+			var requestData map[string]interface{}
+			if err := json.Unmarshal(body, &requestData); err != nil {
+				log.Printf("API: /api/v1/query_range - Error parsing JSON: %v", err)
+				http.Error(w, "Invalid JSON", 400)
+				return
+			}
+
+			// Извлекаем query из JSON
+			if q, ok := requestData["query"].(string); ok {
+				query = q
+			} else {
+				log.Printf("API: /api/v1/query_range - Missing query in JSON body")
+				http.Error(w, "Missing query parameter", 400)
+				return
+			}
+		} else {
+			// Для GET запросов берем из URL параметров
+			query = r.URL.Query().Get("query")
+		}
+
 		if query == "" {
 			log.Printf("API: /api/v1/query_range - Missing query parameter")
 			http.Error(w, "Missing query parameter", 400)
@@ -732,9 +772,9 @@ func main() {
 
 		log.Printf("API: /api/v1/query_range - Success, returned %d results", len(result))
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/label/__name__/values", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/label/__name__/values", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/label/__name__/values called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -766,9 +806,9 @@ func main() {
 
 		log.Printf("API: /api/v1/label/__name__/values - Success, returned 4 metrics")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/labels", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/labels called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -798,9 +838,9 @@ func main() {
 
 		log.Printf("API: /api/v1/labels - Success, returned 2 labels")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/label/category/values", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/label/category/values", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/label/category/values called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -832,9 +872,9 @@ func main() {
 
 		log.Printf("API: /api/v1/label/category/values - Success, returned 4 categories")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/targets", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/targets", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/targets called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -864,9 +904,9 @@ func main() {
 
 		log.Printf("API: /api/v1/targets - Success, returned targets info")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/status/config", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/status/config", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/status/config called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -895,9 +935,9 @@ func main() {
 
 		log.Printf("API: /api/v1/status/config - Success, returned config")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/status/flags", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/status/flags", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/status/flags called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -924,9 +964,9 @@ func main() {
 
 		log.Printf("API: /api/v1/status/flags - Success, returned flags")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/status/runtimeinfo", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/status/runtimeinfo", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/status/runtimeinfo called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -956,9 +996,9 @@ func main() {
 
 		log.Printf("API: /api/v1/status/runtimeinfo - Success, returned runtime info")
 		w.Write(jsonData)
-	})
+	}))
 
-	http.HandleFunc("/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/v1/status/buildinfo", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("API: /api/v1/status/buildinfo called - %s %s", r.Method, r.URL.Path)
 
 		if r.Method != "GET" {
@@ -992,381 +1032,152 @@ func main() {
 
 		log.Printf("API: /api/v1/status/buildinfo - Success, returned build info")
 		w.Write(jsonData)
-	})
+	}))
 
 	// Простой health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte(`{"status": "ok", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
-	})
+	http.HandleFunc("/health", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
 
-	// Обработчик для кнопки Start
-	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+	// Endpoint для запуска скрипта
+	http.HandleFunc("/start", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "start", false)
+		// Добавляем действие "start"
+		err := addAction(db, "start")
 		if err != nil {
 			log.Printf("Ошибка добавления действия start: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
-		// Обновляем статус на start
-		err = updateStatus(db, "start")
+		// Обновляем статус на "starting"
+		err = updateStatus(db, "starting")
 		if err != nil {
 			log.Printf("Ошибка обновления статуса: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
 		}
 
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Start action added"))
+	}))
 
-	// Обработчик для кнопки Stop
-	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+	// Endpoint для остановки скрипта
+	http.HandleFunc("/stop", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "stop", false)
+		// Добавляем действие "stop"
+		err := addAction(db, "stop")
 		if err != nil {
 			log.Printf("Ошибка добавления действия stop: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
-		// Обновляем статус на stop
-		err = updateStatus(db, "stop")
+		// Обновляем статус на "stopping"
+		err = updateStatus(db, "stopping")
 		if err != nil {
 			log.Printf("Ошибка обновления статуса: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
 		}
 
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Stop action added"))
+	}))
 
-	// Обработчик для кнопки Restart
-	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+	// Endpoint для перезапуска скрипта
+	http.HandleFunc("/restart", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", 405)
 			return
 		}
 
-		// Помечаем последнее невыполненное действие как выполненное
-		err := updateLatestPendingAction(db)
-		if err != nil {
-			log.Printf("Ошибка обновления последнего действия: %v", err)
-		}
-
-		err = addActionWithExecuted(db, "restart", false)
+		// Добавляем действие "restart"
+		err := addAction(db, "restart")
 		if err != nil {
 			log.Printf("Ошибка добавления действия restart: %v", err)
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 
-		// Обновляем статус на restart
-		err = updateStatus(db, "restart")
+		// Обновляем статус на "restarting"
+		err = updateStatus(db, "restarting")
 		if err != nil {
 			log.Printf("Ошибка обновления статуса: %v", err)
+			http.Error(w, "Internal server error", 500)
+			return
 		}
 
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Restart action added"))
+	}))
 
-	// Основной обработчик для веб-интерфейса (должен быть последним)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Получаем параметры пагинации и поиска
-		pageStr := r.URL.Query().Get("page")
+	// Главный endpoint для веб-интерфейса
+	http.HandleFunc("/", logMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		// Обрабатываем только GET запросы
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+
+		// Получаем параметры из URL
 		searchQuery := r.URL.Query().Get("search")
 		minPrice := r.URL.Query().Get("min_price")
 		maxPrice := r.URL.Query().Get("max_price")
 		activeTab := r.URL.Query().Get("tab")
 		itemSearch := r.URL.Query().Get("item_search")
 
-		if activeTab == "" {
-			activeTab = "main"
-		}
+		// Получаем данные для отображения
+		var data PageData
 
-		page := 1
-		if pageStr != "" {
-			if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-				page = p
-			}
-		}
-
-		// Получаем фильтры категорий для поиска по предмету
-		categoryBuyConsumables := r.URL.Query().Get("category_buy_consumables") == "1"
-		categoryBuyEquipment := r.URL.Query().Get("category_buy_equipment") == "1"
-		categorySellConsumables := r.URL.Query().Get("category_sell_consumables") == "1"
-		categorySellEquipment := r.URL.Query().Get("category_sell_equipment") == "1"
-
-		// Если ни одна категория не выбрана, выбираем все по умолчанию
-		if !categoryBuyConsumables && !categoryBuyEquipment && !categorySellConsumables && !categorySellEquipment {
-			categoryBuyConsumables = true
-			categoryBuyEquipment = true
-			categorySellConsumables = true
-			categorySellEquipment = true
-		}
-
-		// Если есть поиск по предмету, выполняем его
-		var itemResults []StructuredItem
-		if itemSearch != "" {
-			// Формируем список категорий для поиска
-			var categories []string
-			if categoryBuyConsumables {
-				categories = append(categories, "'buy_consumables'")
-			}
-			if categoryBuyEquipment {
-				categories = append(categories, "'buy_equipment'")
-			}
-			if categorySellConsumables {
-				categories = append(categories, "'sell_consumables'")
-			}
-			if categorySellEquipment {
-				categories = append(categories, "'sell_equipment'")
-			}
-
-			// Поиск по structured_items
-			itemQuery := fmt.Sprintf(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at 
-				FROM structured_items 
-				WHERE category IN (%s) AND title LIKE ? 
-				ORDER BY CAST(REPLACE(REPLACE(price, ',', ''), ' ', '') AS DECIMAL(10,2)), created_at DESC`, strings.Join(categories, ", "))
-
-			itemRows, err := db.Query(itemQuery, "%"+itemSearch+"%")
-			if err != nil {
-				http.Error(w, "DB error", 500)
-				return
-			}
-			defer itemRows.Close()
-
-			for itemRows.Next() {
-				var item StructuredItem
-				if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
-					itemResults = append(itemResults, item)
-				}
-			}
-		}
-
-		// Если активна вкладка поиска по предмету и есть результаты, показываем только их
-		if activeTab == "item_search" && itemSearch != "" {
-			// Получаем статус и действия
-			status, err := getCurrentStatus(db)
-			if err != nil {
-				log.Printf("Ошибка получения статуса: %v", err)
-				status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
-			}
-
-			recentActions, err := getRecentActions(db, 5)
-			if err != nil {
-				log.Printf("Ошибка получения действий: %v", err)
-				recentActions = []Action{}
-			}
-
-			// Подготавливаем данные для шаблона
-			pageData := PageData{
-				ActiveTab:               activeTab,
-				ItemSearch:              itemSearch,
-				ItemResults:             itemResults,
-				CategoryBuyConsumables:  categoryBuyConsumables,
-				CategoryBuyEquipment:    categoryBuyEquipment,
-				CategorySellConsumables: categorySellConsumables,
-				CategorySellEquipment:   categorySellEquipment,
-				Status:                  status,
-				RecentActions:           recentActions,
-			}
-
-			renderTemplate(w, pageData)
-			return
-		}
-
-		// Получаем список предметов из items_list
-		itemsList, err := getItemsList(db)
-		if err != nil {
-			log.Printf("Ошибка получения items_list: %v", err)
-			itemsList = []ItemsListItem{} // Пустой список в случае ошибки
-		}
-
-		resultsPerPage := 10
-		offset := (page - 1) * resultsPerPage
-
-		// Формируем SQL запрос с поиском
-		var countQuery, dataQuery string
-		var args []interface{}
-
-		if searchQuery != "" || minPrice != "" || maxPrice != "" {
-			// Поиск по структурированным данным
-			countQuery = `SELECT COUNT(DISTINCT ocr.id) FROM ocr_results ocr 
-				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
-				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
-			dataQuery = `SELECT DISTINCT ocr.id, ocr.image_path, ocr.image_data, ocr.ocr_text, ocr.debug_info, ocr.json_data, ocr.raw_text, ocr.created_at 
-				FROM ocr_results ocr 
-				LEFT JOIN structured_items si ON ocr.id = si.ocr_result_id 
-				WHERE (si.title LIKE ? OR si.owner LIKE ? OR si.price LIKE ? OR si.title_short LIKE ?)`
-
-			searchPattern := "%" + searchQuery + "%"
-			args = []interface{}{searchPattern, searchPattern, searchPattern, searchPattern}
-
-			// Добавляем фильтрацию по цене
-			if minPrice != "" || maxPrice != "" {
-				countQuery += ` AND (`
-				dataQuery += ` AND (`
-				priceConditions := []string{}
-				priceArgs := []interface{}{}
-
-				if minPrice != "" {
-					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) >= ?")
-					priceArgs = append(priceArgs, minPrice)
-				}
-
-				if maxPrice != "" {
-					priceConditions = append(priceConditions, "CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(10,2)) <= ?")
-					priceArgs = append(priceArgs, maxPrice)
-				}
-
-				countQuery += strings.Join(priceConditions, " AND ") + ")"
-				dataQuery += strings.Join(priceConditions, " AND ") + ")"
-				args = append(args, priceArgs...)
-			}
-
-			dataQuery += ` ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
-		} else {
-			// Без поиска - оптимизированный запрос без image_data
-			countQuery = "SELECT COUNT(*) FROM ocr_results"
-			dataQuery = `SELECT ocr.id, ocr.image_path, ocr.ocr_text, ocr.debug_info, ocr.json_data, ocr.raw_text, ocr.created_at FROM ocr_results ocr ORDER BY ocr.created_at DESC LIMIT ? OFFSET ?`
-		}
-
-		// Получаем общее количество записей
-		var totalCount int
-		var countArgs []interface{}
-		if searchQuery != "" || minPrice != "" || maxPrice != "" {
-			countArgs = args
-		}
-		err = db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
-		if err != nil {
-			http.Error(w, "DB error", 500)
-			return
-		}
-
-		// Вычисляем общее количество страниц
-		totalPages := (totalCount + resultsPerPage - 1) / resultsPerPage
-		if totalPages == 0 {
-			totalPages = 1
-		}
-
-		// Проверяем, что текущая страница не превышает общее количество
-		if page > totalPages {
-			page = totalPages
-			offset = (page - 1) * resultsPerPage
-		}
-
-		// Получаем записи для текущей страницы
-		var rows *sql.Rows
-		if searchQuery != "" || minPrice != "" || maxPrice != "" {
-			args = append(args, resultsPerPage, offset)
-			rows, err = db.Query(dataQuery, args...)
-		} else {
-			rows, err = db.Query(dataQuery, resultsPerPage, offset)
-		}
-
-		if err != nil {
-			http.Error(w, "DB error", 500)
-			return
-		}
-		defer rows.Close()
-
-		var results []OCRResult
-		for rows.Next() {
-			var res OCRResult
-			if err := rows.Scan(&res.ID, &res.ImagePath, &res.OCRText, &res.DebugInfo, &res.JSONData, &res.RawText, &res.CreatedAt); err != nil {
-				continue
-			}
-			results = append(results, res)
-		}
-
-		// Загружаем структурированные данные одним запросом для всех результатов
-		if len(results) > 0 {
-			var resultIDs []string
-			for _, res := range results {
-				resultIDs = append(resultIDs, strconv.Itoa(res.ID))
-			}
-
-			itemsQuery := fmt.Sprintf(`SELECT id, ocr_result_id, title, title_short, enhancement, price, package, owner, count, category, created_at 
-				FROM structured_items 
-				WHERE ocr_result_id IN (%s) 
-				ORDER BY ocr_result_id, created_at`, strings.Join(resultIDs, ","))
-
-			itemRows, err := db.Query(itemsQuery)
-			if err == nil {
-				defer itemRows.Close()
-
-				// Группируем items по ocr_result_id
-				itemsByOCRID := make(map[int][]StructuredItem)
-				for itemRows.Next() {
-					var item StructuredItem
-					if err := itemRows.Scan(&item.ID, &item.OCRResultID, &item.Title, &item.TitleShort, &item.Enhancement, &item.Price, &item.Package, &item.Owner, &item.Count, &item.Category, &item.CreatedAt); err == nil {
-						itemsByOCRID[item.OCRResultID] = append(itemsByOCRID[item.OCRResultID], item)
-					}
-				}
-
-				// Присваиваем items к соответствующим результатам
-				for i := range results {
-					results[i].Items = itemsByOCRID[results[i].ID]
-				}
-			}
-		}
-
-		// Получаем статус и действия
+		// Получаем статус
 		status, err := getCurrentStatus(db)
 		if err != nil {
 			log.Printf("Ошибка получения статуса: %v", err)
-			status = Status{ID: 0, CurrentStatus: "unknown", UpdatedAt: ""}
+		} else {
+			data.Status = status
 		}
 
-		recentActions, err := getRecentActions(db, 5)
+		// Получаем последние действия
+		actions, err := getRecentActions(db, 10)
 		if err != nil {
 			log.Printf("Ошибка получения действий: %v", err)
-			recentActions = []Action{}
+		} else {
+			data.RecentActions = actions
 		}
 
-		// Подготавливаем данные для шаблона
-		pageData := PageData{
-			Results:       results,
-			CurrentPage:   page,
-			TotalPages:    totalPages,
-			TotalCount:    totalCount,
-			HasPrev:       page > 1,
-			HasNext:       page < totalPages,
-			PrevPage:      page - 1,
-			NextPage:      page + 1,
-			SearchQuery:   searchQuery,
-			MinPrice:      minPrice,
-			MaxPrice:      maxPrice,
-			ActiveTab:     activeTab,
-			ItemsList:     itemsList,
-			Status:        status,
-			RecentActions: recentActions,
+		// Получаем список предметов
+		itemsList, err := getItemsList(db)
+		if err != nil {
+			log.Printf("Ошибка получения списка предметов: %v", err)
+		} else {
+			data.ItemsList = itemsList
 		}
 
-		renderTemplate(w, pageData)
-	})
+		// Устанавливаем активную вкладку
+		if activeTab == "" {
+			activeTab = "main"
+		}
+		data.ActiveTab = activeTab
+
+		// Устанавливаем поисковые параметры
+		data.SearchQuery = searchQuery
+		data.MinPrice = minPrice
+		data.MaxPrice = maxPrice
+		data.ItemSearch = itemSearch
+
+		// Рендерим шаблон
+		renderTemplate(w, data)
+	}))
 
 	// Запускаем периодическое обновление метрик
 	go func() {
