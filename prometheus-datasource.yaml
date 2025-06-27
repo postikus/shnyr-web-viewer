@@ -4,6 +4,6 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: https://shnyr-web-viewer.onrender.com
+    url: https://shnyr-web-viewer.onrender.com/metrics
     isDefault: true
     editable: true 

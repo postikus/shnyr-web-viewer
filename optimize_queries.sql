@@ -14,20 +14,16 @@ CREATE INDEX idx_structured_items_price ON structured_items(price);
 
 -- Индексы для оптимизации запроса updateGoldCoinMetrics
 -- Составной индекс для быстрого поиска gold coin в buy_consumables
-CREATE INDEX idx_structured_items_gold_coin_buy ON structured_items(title, category, ocr_result_id) 
-WHERE title = 'gold coin' AND category = 'buy_consumables';
+CREATE INDEX idx_structured_items_gold_coin_buy ON structured_items(title, category, ocr_result_id);
 
 -- Индекс для быстрого поиска по title = 'gold coin'
-CREATE INDEX idx_structured_items_title_gold_coin ON structured_items(title, ocr_result_id) 
-WHERE title = 'gold coin';
+CREATE INDEX idx_structured_items_title_gold_coin ON structured_items(title, ocr_result_id);
 
 -- Индекс для быстрого поиска по category = 'buy_consumables'
-CREATE INDEX idx_structured_items_category_buy ON structured_items(category, ocr_result_id) 
-WHERE category = 'buy_consumables';
+CREATE INDEX idx_structured_items_category_buy ON structured_items(category, ocr_result_id);
 
--- Индекс для быстрой фильтрации по цене (не NULL и не пустая)
-CREATE INDEX idx_structured_items_price_valid ON structured_items(price, ocr_result_id) 
-WHERE price IS NOT NULL AND price != '';
+-- Индекс для быстрой фильтрации по цене
+CREATE INDEX idx_structured_items_price_valid ON structured_items(price, ocr_result_id);
 
 -- Составной индекс для JOIN между ocr_results и structured_items
 CREATE INDEX idx_ocr_structured_join ON ocr_results(id, created_at);
