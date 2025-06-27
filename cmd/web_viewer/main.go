@@ -845,15 +845,15 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	// Prometheus API endpoints для совместимости с Grafana
-	http.HandleFunc("/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /api/v1/status/buildinfo от %s", r.RemoteAddr)
+	http.HandleFunc("/metrics/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/status/buildinfo от %s", r.RemoteAddr)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":{"version":"1.0.0","revision":"","branch":"","buildUser":"","buildDate":"","goVersion":"go1.22"}}`))
 	})
 
-	http.HandleFunc("/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
@@ -893,7 +893,7 @@ func main() {
 		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 	})
 
-	http.HandleFunc("/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
@@ -935,16 +935,16 @@ func main() {
 		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
 	})
 
-	http.HandleFunc("/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /api/v1/series от %s", r.RemoteAddr)
+	http.HandleFunc("/metrics/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics/api/v1/series от %s", r.RemoteAddr)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":[{"__name__":"gold_coin_avg_min_3_prices","category":"buy_consumables"}]}`))
 	})
 
-	// /api/v1/labels — список всех лейблов
-	http.HandleFunc("/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
+	// /metrics/api/v1/labels — список всех лейблов
+	http.HandleFunc("/metrics/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		labels := []string{"__name__", "category"}
@@ -955,8 +955,8 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
-	// /api/v1/label/<label_name>/values — значения для конкретного лейбла
-	http.HandleFunc("/api/v1/label/", func(w http.ResponseWriter, r *http.Request) {
+	// /metrics/api/v1/label/<label_name>/values — значения для конкретного лейбла
+	http.HandleFunc("/metrics/api/v1/label/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		parts := strings.Split(r.URL.Path, "/")
@@ -994,8 +994,8 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
-	// /api/v1/metadata — возвращает метаданные о метриках
-	http.HandleFunc("/api/v1/metadata", func(w http.ResponseWriter, r *http.Request) {
+	// /metrics/api/v1/metadata — возвращает метаданные о метриках
+	http.HandleFunc("/metrics/api/v1/metadata", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		metadata := map[string][]map[string]string{
