@@ -29,7 +29,9 @@ services:
       - web_viewer
     restart: always
   grafana:
-    image: grafana/grafana
+    build:
+      context: .
+      dockerfile: Dockerfile.grafana
     ports:
       - "3000:3000"
     environment:

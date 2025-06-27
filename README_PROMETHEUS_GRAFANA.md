@@ -4,7 +4,13 @@
 - **web_viewer** — Go сервис с endpoint `/metrics/gold_coin` для Prometheus
 - **MySQL** — база данных
 - **Prometheus** — сбор метрик с web_viewer
-- **Grafana** — визуализация метрик
+- **Grafana** — визуализация метрик (собранная из Dockerfile.grafana)
+
+## Файлы для деплоя
+- `Dockerfile` — для web_viewer
+- `Dockerfile.grafana` — для Grafana
+- `docker-compose.yml` — оркестрация всех сервисов
+- `prometheus.yml` — конфигурация Prometheus
 
 ## Быстрый старт (локально или на Render)
 
@@ -12,6 +18,7 @@
 
 2. **Проверьте структуру**
    - `Dockerfile` (для web_viewer)
+   - `Dockerfile.grafana` (для Grafana)
    - `docker-compose.yml`
    - `prometheus.yml`
 
@@ -54,9 +61,20 @@ gold_coin_max_price
 ## Деплой на Render
 
 1. **Создайте новый Blueprint (YAML) проект на Render**
-2. Загрузите файлы `docker-compose.yml`, `prometheus.yml`, `Dockerfile` в корень репозитория
+2. Загрузите файлы в корень репозитория:
+   - `Dockerfile` (для web_viewer)
+   - `Dockerfile.grafana` (для Grafana)
+   - `docker-compose.yml`
+   - `prometheus.yml`
 3. Render автоматически поднимет все сервисы
 4. Откройте Grafana по публичному адресу Render
+
+## Структура Dockerfile.grafana
+
+- Базовый образ: `grafana/grafana:latest`
+- Порт: 3000
+- Логин по умолчанию: admin/admin
+- Готов для кастомизации (раскомментируйте строки для добавления дашбордов)
 
 ---
 
@@ -69,4 +87,5 @@ gold_coin_max_price
 
 **Авторы:**
 - web_viewer: ваш Go сервис
-- Prometheus/Grafana: официальные образы 
+- Grafana: собранная из Dockerfile.grafana
+- Prometheus: официальный образ 
