@@ -10,8 +10,16 @@ services:
         value: 8080
       - key: HOST
         value: 0.0.0.0
-      - key: DATABASE_URL
-        value: root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true
+      - key: DB_HOST
+        value: 108.181.194.102
+      - key: DB_PORT
+        value: 3306
+      - key: DB_USER
+        value: root
+      - key: DB_PASSWORD
+        value: root
+      - key: DB_NAME
+        value: octopus
     healthCheckPath: /
     autoDeploy: true
 
