@@ -447,7 +447,12 @@ func main() {
 		w.Write(jsonData)
 	})
 
-	// Endpoint для Prometheus метрик
+	// Endpoint для Prometheus метрик - обрабатывает все пути начинающиеся с /metrics/
+	http.HandleFunc("/metrics/", func(w http.ResponseWriter, r *http.Request) {
+		promhttp.Handler().ServeHTTP(w, r)
+	})
+
+	// Также оставляем точный путь /metrics для совместимости
 	http.Handle("/metrics", promhttp.Handler())
 
 	// Prometheus API endpoints для совместимости с Grafana
