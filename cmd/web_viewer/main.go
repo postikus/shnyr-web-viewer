@@ -9,16 +9,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	io_prometheus_client "github.com/prometheus/client_model/go"
 )
 
 // Prometheus метрики для отслеживания цен gold coin
@@ -31,7 +28,7 @@ var (
 		},
 	)
 
-	goldCoinAvgPrice = promauto.NewGaugeVec(
+	goldCoinAvgPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_avg_min_3_prices",
 			Help: "Среднее из 3 минимальных цен для gold coin",
@@ -39,7 +36,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinMinPrice = promauto.NewGaugeVec(
+	goldCoinMinPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_min_price",
 			Help: "Минимальная цена для gold coin",
@@ -47,7 +44,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinMaxPrice = promauto.NewGaugeVec(
+	goldCoinMaxPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_max_price_of_min_3",
 			Help: "Максимальная из 3 минимальных цен для gold coin",
@@ -55,7 +52,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinPriceCount = promauto.NewGaugeVec(
+	goldCoinPriceCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_prices_count",
 			Help: "Количество цен для gold coin",
@@ -842,7 +839,20 @@ func main() {
 	})
 
 	// Endpoint для Prometheus метрик
-	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📊 Запрос к /metrics от %s", r.RemoteAddr)
+		log.Printf("📊 User-Agent: %s", r.UserAgent())
+		log.Printf("📊 URL: %s", r.URL.String())
+		log.Printf("📊 Method: %s", r.Method)
+		log.Printf("📊 Headers: %v", r.Header)
+
+		// Устанавливаем правильные заголовки для Prometheus
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+
+		promhttp.Handler().ServeHTTP(w, r)
+		log.Printf("📊 Метрики отправлены")
+	})
 
 	// Prometheus API endpoints для совместимости с Grafana
 	http.HandleFunc("/metrics/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
@@ -854,83 +864,17 @@ func main() {
 	})
 
 	http.HandleFunc("/metrics/api/v1/query", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query().Get("query")
+		log.Printf("📊 Запрос к /metrics/api/v1/query от %s", r.RemoteAddr)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(\{.*\})?$`)
-		matches := re.FindStringSubmatch(query)
-		if len(matches) > 0 {
-			metricName := matches[1]
-			if metricName == "gold_coin_avg_min_3_prices" {
-				ch := make(chan prometheus.Metric)
-				go func() {
-					goldCoinAvgPrice.Collect(ch)
-					close(ch)
-				}()
-				var results []string
-				for metric := range ch {
-					dto := &io_prometheus_client.Metric{}
-					if err := metric.Write(dto); err != nil {
-						continue
-					}
-					category := ""
-					for _, label := range dto.Label {
-						if label.GetName() == "category" {
-							category = label.GetValue()
-						}
-					}
-					value := dto.GetGauge().GetValue()
-					results = append(results, fmt.Sprintf(`{"metric":{"__name__":"gold_coin_avg_min_3_prices","category":"%s"},"value":[%d,"%f"]}`, category, int(time.Now().Unix()), value))
-				}
-				response := fmt.Sprintf(`{"status":"success","data":{"resultType":"vector","result":[%s]}}`, strings.Join(results, ","))
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(response))
-				return
-			}
-		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]}}`))
 	})
 
 	http.HandleFunc("/metrics/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query().Get("query")
+		log.Printf("📊 Запрос к /metrics/api/v1/query_range от %s", r.RemoteAddr)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(\{.*\})?$`)
-		matches := re.FindStringSubmatch(query)
-		if len(matches) > 0 {
-			metricName := matches[1]
-			if metricName == "gold_coin_avg_min_3_prices" {
-				ch := make(chan prometheus.Metric)
-				go func() {
-					goldCoinAvgPrice.Collect(ch)
-					close(ch)
-				}()
-				var results []string
-				for metric := range ch {
-					dto := &io_prometheus_client.Metric{}
-					if err := metric.Write(dto); err != nil {
-						continue
-					}
-					category := ""
-					for _, label := range dto.Label {
-						if label.GetName() == "category" {
-							category = label.GetValue()
-						}
-					}
-					value := dto.GetGauge().GetValue()
-					// Для примера возвращаем 3 точки с разными timestamp
-					values := fmt.Sprintf("[[%d,\"%f\"],[%d,\"%f\"],[%d,\"%f\"]]", int(time.Now().Unix())-30, value, int(time.Now().Unix())-15, value, int(time.Now().Unix()), value)
-					results = append(results, fmt.Sprintf(`{"metric":{"__name__":"gold_coin_avg_min_3_prices","category":"%s"},"values":%s}`, category, values))
-				}
-				response := fmt.Sprintf(`{"status":"success","data":{"resultType":"matrix","result":[%s]}}`, strings.Join(results, ","))
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(response))
-				return
-			}
-		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
 	})
@@ -940,96 +884,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store, must-revalidate")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success","data":[{"__name__":"gold_coin_avg_min_3_prices","category":"buy_consumables"}]}`))
-	})
-
-	// /metrics/api/v1/labels — список всех лейблов
-	http.HandleFunc("/metrics/api/v1/labels", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		labels := []string{"__name__", "category"}
-		resp := map[string]interface{}{
-			"status": "success",
-			"data":   labels,
-		}
-		json.NewEncoder(w).Encode(resp)
-	})
-
-	// /metrics/api/v1/label/<label_name>/values — значения для конкретного лейбла
-	http.HandleFunc("/metrics/api/v1/label/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) < 6 {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"status":"error","errorType":"bad_data","error":"label name required"}`))
-			return
-		}
-		labelName := parts[5]
-		valuesSet := make(map[string]struct{})
-		ch := make(chan prometheus.Metric)
-		go func() {
-			goldCoinAvgPrice.Collect(ch)
-			close(ch)
-		}()
-		for metric := range ch {
-			dto := &io_prometheus_client.Metric{}
-			if err := metric.Write(dto); err != nil {
-				continue
-			}
-			for _, label := range dto.Label {
-				if label.GetName() == labelName {
-					valuesSet[label.GetValue()] = struct{}{}
-				}
-			}
-		}
-		var values []string
-		for v := range valuesSet {
-			values = append(values, v)
-		}
-		resp := map[string]interface{}{
-			"status": "success",
-			"data":   values,
-		}
-		json.NewEncoder(w).Encode(resp)
-	})
-
-	// /metrics/api/v1/metadata — возвращает метаданные о метриках
-	http.HandleFunc("/metrics/api/v1/metadata", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-		metadata := map[string][]map[string]string{
-			"gold_coin_avg_min_3_prices": {{
-				"type": "gauge",
-				"help": "Среднее из 3 минимальных цен для gold coin",
-				"unit": "",
-			}},
-			"gold_coin_min_price": {{
-				"type": "gauge",
-				"help": "Минимальная цена для gold coin",
-				"unit": "",
-			}},
-			"gold_coin_max_price_of_min_3": {{
-				"type": "gauge",
-				"help": "Максимальная из 3 минимальных цен для gold coin",
-				"unit": "",
-			}},
-			"gold_coin_prices_count": {{
-				"type": "gauge",
-				"help": "Количество цен для gold coin",
-				"unit": "",
-			}},
-			"shnyr_test_metric": {{
-				"type": "gauge",
-				"help": "Тестовая метрика для проверки работы Prometheus",
-				"unit": "",
-			}},
-		}
-		resp := map[string]interface{}{
-			"status": "success",
-			"data":   metadata,
-		}
-		json.NewEncoder(w).Encode(resp)
+		w.Write([]byte(`{"status":"success","data":[]}`))
 	})
 
 	// Простой health check endpoint
