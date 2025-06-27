@@ -361,6 +361,56 @@ func updateLatestPendingAction(db *sql.DB) error {
 	return nil
 }
 
+// getPrometheusMetrics возвращает текущие значения метрик в формате Prometheus
+func getPrometheusMetrics() map[string]interface{} {
+	// Получаем текущие значения метрик
+	metrics := make(map[string]interface{})
+
+	// Получаем значения для gold_coin_avg_min_3_prices
+	goldCoinAvgPrice.WithLabelValues("buy_consumables").Set(0) // Временно устанавливаем значение
+	metrics["gold_coin_avg_min_3_prices"] = []map[string]interface{}{
+		{
+			"metric": map[string]string{
+				"__name__": "gold_coin_avg_min_3_prices",
+				"category": "buy_consumables",
+			},
+			"value": []interface{}{time.Now().Unix(), 0.0},
+		},
+	}
+
+	return metrics
+}
+
+// parsePromQL парсит простые PromQL запросы
+func parsePromQL(query string) (string, []string, error) {
+	// Простая реализация для базовых запросов
+	// Например: gold_coin_avg_min_3_prices{category="buy_consumables"}
+
+	// Убираем пробелы
+	query = strings.TrimSpace(query)
+
+	// Ищем метрику (до { или до конца строки)
+	metricName := query
+	if idx := strings.Index(query, "{"); idx != -1 {
+		metricName = query[:idx]
+	}
+
+	// Извлекаем лейблы
+	var labels []string
+	if idx := strings.Index(query, "{"); idx != -1 {
+		endIdx := strings.Index(query, "}")
+		if endIdx != -1 {
+			labelPart := query[idx+1 : endIdx]
+			labels = strings.Split(labelPart, ",")
+			for i, label := range labels {
+				labels[i] = strings.TrimSpace(label)
+			}
+		}
+	}
+
+	return metricName, labels, nil
+}
+
 func main() {
 	// Получаем порт из переменной окружения
 	port := os.Getenv("PORT")
@@ -471,12 +521,69 @@ func main() {
 		// Устанавливаем заголовки для JSON
 		w.Header().Set("Content-Type", "application/json")
 
-		// Возвращаем пустой результат для совместимости
+		// Парсим запрос
+		metricName, _, err := parsePromQL(query)
+		if err != nil {
+			http.Error(w, "Invalid query", 400)
+			return
+		}
+
+		// Обновляем метрики из базы данных
+		updateGoldCoinMetrics(db)
+
+		// Формируем ответ в зависимости от запрошенной метрики
+		var result []interface{}
+
+		switch metricName {
+		case "gold_coin_avg_min_3_prices":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_avg_min_3_prices",
+						"category": "buy_consumables",
+					},
+					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+				},
+			}
+		case "gold_coin_min_price":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_min_price",
+						"category": "buy_consumables",
+					},
+					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+				},
+			}
+		case "gold_coin_max_price_of_min_3":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_max_price_of_min_3",
+						"category": "buy_consumables",
+					},
+					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+				},
+			}
+		case "gold_coin_prices_count":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_prices_count",
+						"category": "buy_consumables",
+					},
+					"value": []interface{}{time.Now().Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+				},
+			}
+		default:
+			result = []interface{}{}
+		}
+
 		response := map[string]interface{}{
 			"status": "success",
 			"data": map[string]interface{}{
 				"resultType": "vector",
-				"result":     []interface{}{},
+				"result":     result,
 			},
 		}
 
@@ -504,12 +611,81 @@ func main() {
 		// Устанавливаем заголовки для JSON
 		w.Header().Set("Content-Type", "application/json")
 
-		// Возвращаем пустой результат для совместимости
+		// Парсим запрос
+		metricName, _, err := parsePromQL(query)
+		if err != nil {
+			http.Error(w, "Invalid query", 400)
+			return
+		}
+
+		// Обновляем метрики из базы данных
+		updateGoldCoinMetrics(db)
+
+		// Для range query возвращаем несколько точек данных
+		var result []interface{}
+
+		switch metricName {
+		case "gold_coin_avg_min_3_prices":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_avg_min_3_prices",
+						"category": "buy_consumables",
+					},
+					"values": [][]interface{}{
+						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
+					},
+				},
+			}
+		case "gold_coin_min_price":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_min_price",
+						"category": "buy_consumables",
+					},
+					"values": [][]interface{}{
+						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
+					},
+				},
+			}
+		case "gold_coin_max_price_of_min_3":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_max_price_of_min_3",
+						"category": "buy_consumables",
+					},
+					"values": [][]interface{}{
+						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
+					},
+				},
+			}
+		case "gold_coin_prices_count":
+			result = []interface{}{
+				map[string]interface{}{
+					"metric": map[string]string{
+						"__name__": "gold_coin_prices_count",
+						"category": "buy_consumables",
+					},
+					"values": [][]interface{}{
+						{time.Now().Add(-60 * time.Second).Unix(), 0.0}, // Используем фиксированное значение для демонстрации
+						{time.Now().Unix(), 0.0},                        // Используем фиксированное значение для демонстрации
+					},
+				},
+			}
+		default:
+			result = []interface{}{}
+		}
+
 		response := map[string]interface{}{
 			"status": "success",
 			"data": map[string]interface{}{
 				"resultType": "matrix",
-				"result":     []interface{}{},
+				"result":     result,
 			},
 		}
 
