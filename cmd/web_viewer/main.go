@@ -16,6 +16,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 )
@@ -30,7 +31,7 @@ var (
 		},
 	)
 
-	goldCoinAvgPrice = prometheus.NewGaugeVec(
+	goldCoinAvgPrice = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_avg_min_3_prices",
 			Help: "Среднее из 3 минимальных цен для gold coin",
@@ -38,7 +39,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinMinPrice = prometheus.NewGaugeVec(
+	goldCoinMinPrice = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_min_price",
 			Help: "Минимальная цена для gold coin",
@@ -46,7 +47,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinMaxPrice = prometheus.NewGaugeVec(
+	goldCoinMaxPrice = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_max_price_of_min_3",
 			Help: "Максимальная из 3 минимальных цен для gold coin",
@@ -54,7 +55,7 @@ var (
 		[]string{"category"},
 	)
 
-	goldCoinPriceCount = prometheus.NewGaugeVec(
+	goldCoinPriceCount = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gold_coin_prices_count",
 			Help: "Количество цен для gold coin",
@@ -841,20 +842,7 @@ func main() {
 	})
 
 	// Endpoint для Prometheus метрик
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📊 Запрос к /metrics от %s", r.RemoteAddr)
-		log.Printf("📊 User-Agent: %s", r.UserAgent())
-		log.Printf("📊 URL: %s", r.URL.String())
-		log.Printf("📊 Method: %s", r.Method)
-		log.Printf("📊 Headers: %v", r.Header)
-
-		// Устанавливаем правильные заголовки для Prometheus
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store, must-revalidate")
-
-		promhttp.Handler().ServeHTTP(w, r)
-		log.Printf("📊 Метрики отправлены")
-	})
+	http.Handle("/metrics", promhttp.Handler())
 
 	// Prometheus API endpoints для совместимости с Grafana
 	http.HandleFunc("/metrics/api/v1/status/buildinfo", func(w http.ResponseWriter, r *http.Request) {
