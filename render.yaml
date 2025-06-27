@@ -29,5 +29,7 @@ services:
         value: true
       - key: GF_SERVER_ROOT_URL
         value: https://grafana-dashboard.onrender.com/
+      - key: GF_SERVER_DOMAIN
+        value: grafana-dashboard.onrender.com
     healthCheckPath: /api/health
     autoDeploy: true 

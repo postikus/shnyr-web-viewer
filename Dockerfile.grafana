@@ -16,6 +16,9 @@ COPY dashboard-provider.yaml /etc/grafana/provisioning/dashboards/dashboard-prov
 # Копируем конфигурацию источника данных для Prometheus
 COPY prometheus-datasource.yaml /etc/grafana/provisioning/datasources/prometheus-datasource.yaml
 
+# Устанавливаем правильные права доступа
+RUN chown -R grafana:grafana /etc/grafana/provisioning
+
 # Устанавливаем переменные окружения
 ENV GF_SECURITY_ADMIN_PASSWORD=admin123
 ENV GF_INSTALL_PLUGINS=grafana-piechart-panel
