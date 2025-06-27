@@ -14,192 +14,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-// Prometheus метрики для отслеживания цен gold coin
-var (
-	goldCoinAvgPrice = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_avg_min_3_prices",
-			Help: "Среднее из 3 минимальных цен для gold coin",
-		},
-		[]string{"category"},
-	)
-
-	goldCoinMinPrice = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_min_price",
-			Help: "Минимальная цена для gold coin",
-		},
-		[]string{"category"},
-	)
-
-	goldCoinMaxPrice = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_max_price_of_min_3",
-			Help: "Максимальная из 3 минимальных цен для gold coin",
-		},
-		[]string{"category"},
-	)
-
-	goldCoinPricesCount = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gold_coin_prices_count",
-			Help: "Количество найденных цен для gold coin",
-		},
-		[]string{"category"},
-	)
-)
-
-func init() {
-	// Регистрируем метрики
-	prometheus.MustRegister(goldCoinAvgPrice)
-	prometheus.MustRegister(goldCoinMinPrice)
-	prometheus.MustRegister(goldCoinMaxPrice)
-	prometheus.MustRegister(goldCoinPricesCount)
-}
-
-// updateGoldCoinMetrics обновляет метрики Prometheus на основе данных из базы
-func updateGoldCoinMetrics(db *sql.DB) error {
-	query := `
-	WITH gold_coin_ocr AS (
-		SELECT DISTINCT ocr.id as ocr_id
-		FROM ocr_results ocr
-		INNER JOIN structured_items si ON ocr.id = si.ocr_result_id
-		WHERE si.title = 'gold coin' 
-		  AND si.category = 'buy_consumables'
-	),
-	price_analysis AS (
-		SELECT 
-			gco.ocr_id,
-			si.id as structured_item_id,
-			si.title,
-			si.category,
-			si.price,
-			si.owner,
-			si.count,
-			si.package,
-			CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
-		FROM gold_coin_ocr gco
-		INNER JOIN structured_items si ON gco.ocr_id = si.ocr_result_id
-		WHERE si.price IS NOT NULL 
-		  AND si.price != ''
-		  AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
-	),
-	top_3_prices AS (
-		SELECT 
-			ocr_id,
-			title,
-			category,
-			price,
-			price_numeric,
-			owner,
-			count,
-			package,
-			ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
-		FROM price_analysis
-	),
-	avg_min_3_prices AS (
-		SELECT 
-			ocr_id,
-			title,
-			category,
-			COUNT(*) as prices_count,
-			AVG(price_numeric) as avg_min_3_prices,
-			MIN(price_numeric) as min_price,
-			MAX(price_numeric) as max_price_of_min_3,
-			GROUP_CONCAT(price ORDER BY price_numeric ASC SEPARATOR ', ') as min_3_prices
-		FROM top_3_prices
-		WHERE price_rank <= 3
-		GROUP BY ocr_id, title, category
-	)
-	SELECT 
-		am3p.ocr_id,
-		am3p.title,
-		am3p.category,
-		am3p.prices_count,
-		am3p.avg_min_3_prices,
-		am3p.min_price,
-		am3p.max_price_of_min_3,
-		am3p.min_3_prices,
-		ocr.created_at
-	FROM avg_min_3_prices am3p
-	INNER JOIN ocr_results ocr ON am3p.ocr_id = ocr.id
-	ORDER BY ocr.created_at DESC
-	LIMIT 10
-	`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		return fmt.Errorf("ошибка выполнения запроса: %v", err)
-	}
-	defer rows.Close()
-
-	// Сбрасываем старые метрики
-	goldCoinAvgPrice.Reset()
-	goldCoinMinPrice.Reset()
-	goldCoinMaxPrice.Reset()
-	goldCoinPricesCount.Reset()
-
-	var totalCount int
-	var totalAvgPrice, totalMinPrice, totalMaxPrice float64
-
-	for rows.Next() {
-		var (
-			ocrID          int
-			title          string
-			category       string
-			pricesCount    int
-			avgMin3Prices  sql.NullFloat64
-			minPrice       sql.NullFloat64
-			maxPriceOfMin3 sql.NullFloat64
-			min3Prices     string
-			createdAt      string
-		)
-
-		err := rows.Scan(&ocrID, &title, &category, &pricesCount, &avgMin3Prices, &minPrice, &maxPriceOfMin3, &min3Prices, &createdAt)
-		if err != nil {
-			log.Printf("ошибка сканирования строки: %v", err)
-			continue
-		}
-
-		totalCount++
-
-		// Обновляем метрики для каждой записи
-		if avgMin3Prices.Valid {
-			goldCoinAvgPrice.WithLabelValues(category).Set(avgMin3Prices.Float64)
-			totalAvgPrice += avgMin3Prices.Float64
-		}
-
-		if minPrice.Valid {
-			goldCoinMinPrice.WithLabelValues(category).Set(minPrice.Float64)
-			if totalMinPrice == 0 || minPrice.Float64 < totalMinPrice {
-				totalMinPrice = minPrice.Float64
-			}
-		}
-
-		if maxPriceOfMin3.Valid {
-			goldCoinMaxPrice.WithLabelValues(category).Set(maxPriceOfMin3.Float64)
-			if maxPriceOfMin3.Float64 > totalMaxPrice {
-				totalMaxPrice = maxPriceOfMin3.Float64
-			}
-		}
-
-		goldCoinPricesCount.WithLabelValues(category).Set(float64(pricesCount))
-	}
-
-	// Обновляем общие метрики
-	if totalCount > 0 {
-		goldCoinAvgPrice.WithLabelValues("overall").Set(totalAvgPrice / float64(totalCount))
-		goldCoinMinPrice.WithLabelValues("overall").Set(totalMinPrice)
-		goldCoinMaxPrice.WithLabelValues("overall").Set(totalMaxPrice)
-		goldCoinPricesCount.WithLabelValues("overall").Set(float64(totalCount))
-	}
-
-	return nil
-}
 
 type StructuredItem struct {
 	ID          int
@@ -836,31 +651,106 @@ func main() {
 		w.Write(jsonData)
 	})
 
-	// Endpoint для Prometheus метрик
-	http.Handle("/metrics", promhttp.Handler())
+	// Endpoint для Prometheus
+	http.HandleFunc("/metrics/gold_coin", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
-	// Запускаем горутину для периодического обновления метрик
-	go func() {
-		for {
-			// Обновляем метрики каждые 30 секунд
-			time.Sleep(30 * time.Second)
+		query := `WITH gold_coin_ocr AS (
+			SELECT DISTINCT ocr.id as ocr_id
+			FROM octopus.ocr_results ocr
+			INNER JOIN octopus.structured_items si ON ocr.id = si.ocr_result_id
+			WHERE si.title = 'gold coin' AND si.category = 'buy_consumables'
+		),
+		price_analysis AS (
+			SELECT 
+				gco.ocr_id,
+				si.id as structured_item_id,
+				si.title,
+				si.category,
+				si.price,
+				si.owner,
+				si.count,
+				si.package,
+				CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) as price_numeric
+			FROM gold_coin_ocr gco
+			INNER JOIN octopus.structured_items si ON gco.ocr_id = si.ocr_result_id
+			WHERE si.price IS NOT NULL AND si.price != '' AND CAST(REPLACE(REPLACE(si.price, ',', ''), ' ', '') AS DECIMAL(15,2)) > 0
+		),
+		top_3_prices AS (
+			SELECT 
+				ocr_id,
+				title,
+				category,
+				price,
+				price_numeric,
+				owner,
+				count,
+				package,
+				ROW_NUMBER() OVER (PARTITION BY ocr_id ORDER BY price_numeric ASC) as price_rank
+			FROM price_analysis
+		),
+		avg_min_3_prices AS (
+			SELECT 
+				ocr_id,
+				title,
+				category,
+				COUNT(*) as prices_count,
+				AVG(price_numeric) as avg_min_3_prices,
+				MIN(price_numeric) as min_price,
+				MAX(price_numeric) as max_price_of_min_3,
+				GROUP_CONCAT(price ORDER BY price_numeric ASC SEPARATOR ', ') as min_3_prices
+			FROM top_3_prices
+			WHERE price_rank <= 3
+			GROUP BY ocr_id, title, category
+		)
+		SELECT 
+			am3p.ocr_id,
+			am3p.title,
+			am3p.category,
+			am3p.prices_count,
+			am3p.avg_min_3_prices,
+			am3p.min_price,
+			am3p.max_price_of_min_3,
+			am3p.min_3_prices,
+			ocr.created_at,
+			ocr.image_path
+		FROM avg_min_3_prices am3p
+		INNER JOIN octopus.ocr_results ocr ON am3p.ocr_id = ocr.id
+		ORDER BY ocr.created_at DESC;`
 
-			err := updateGoldCoinMetrics(db)
-			if err != nil {
-				log.Printf("Ошибка обновления метрик: %v", err)
-			} else {
-				log.Printf("Метрики gold coin обновлены")
-			}
+		rows, err := db.Query(query)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, "# error: %v\n", err)
+			return
 		}
-	}()
+		defer rows.Close()
 
-	// Первоначальное обновление метрик
-	err = updateGoldCoinMetrics(db)
-	if err != nil {
-		log.Printf("Ошибка первоначального обновления метрик: %v", err)
-	} else {
-		log.Printf("Первоначальные метрики gold coin установлены")
-	}
+		fmt.Fprintln(w, "# HELP gold_coin_price Среднее из 3 минимальных цен")
+		fmt.Fprintln(w, "# TYPE gold_coin_price gauge")
+		fmt.Fprintln(w, "# HELP gold_coin_min_price Минимальная из 3 цен")
+		fmt.Fprintln(w, "# TYPE gold_coin_min_price gauge")
+		fmt.Fprintln(w, "# HELP gold_coin_max_price Максимальная из 3 цен")
+		fmt.Fprintln(w, "# TYPE gold_coin_max_price gauge")
+		fmt.Fprintln(w, "# HELP gold_coin_timestamp Время создания ocr_result (unixtime)")
+		fmt.Fprintln(w, "# TYPE gold_coin_timestamp gauge")
+
+		for rows.Next() {
+			var ocr_id int
+			var title, category, min_3_prices, image_path string
+			var prices_count int
+			var avg_min_3_prices, min_price, max_price_of_min_3 float64
+			var created_at time.Time
+			if err := rows.Scan(&ocr_id, &title, &category, &prices_count, &avg_min_3_prices, &min_price, &max_price_of_min_3, &min_3_prices, &created_at, &image_path); err != nil {
+				continue
+			}
+			labels := fmt.Sprintf("ocr_id=\"%d\",title=\"%s\",category=\"%s\"", ocr_id, title, category)
+			fmt.Fprintf(w, "gold_coin_price{%s} %f\n", labels, avg_min_3_prices)
+			fmt.Fprintf(w, "gold_coin_min_price{%s} %f\n", labels, min_price)
+			fmt.Fprintf(w, "gold_coin_max_price{%s} %f\n", labels, max_price_of_min_3)
+			fmt.Fprintf(w, "gold_coin_timestamp{%s} %d\n", labels, created_at.Unix())
+		}
+	})
 
 	fmt.Printf("🚀 ШНЫРЬ v0.1 запущен на порту %s\n", port)
 	fmt.Printf("📊 База данных: %s\n", dbDSN)
