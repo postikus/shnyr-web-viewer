@@ -3,7 +3,7 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
-    access: proxy
-    url: https://shnyr-web-viewer.onrender.com/metrics
+    access: browser
+    url:  https://shnyr-web-viewer.onrender.com/metrics
     isDefault: true
     editable: true 
