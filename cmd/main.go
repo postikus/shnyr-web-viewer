@@ -187,7 +187,7 @@ func main() {
 	loggerManager.Info("📍 Начальный предмет: %d", c.StartItemIndex)
 
 	// Подключение к базе данных MySQL
-	db, err := sql.Open("mysql", "root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true")
+	db, err := sql.Open("mysql", "root:tY6@uI!oP_aZ8$cV@tcp(108.181.194.102:3306)/octopus?parseTime=true")
 	if err != nil {
 		loggerManager.LogError(err, "Error connecting to database")
 		return
@@ -233,6 +233,10 @@ func main() {
 
 	// Инициализация окна для получения отступов
 	windowInitializer := imageInternal.NewWindowInitializer(c.WindowTopOffset)
+
+	//log windowInitializer
+	loggerManager.Info("windowInitializer: %v", windowInitializer)
+
 	marginX, marginY, err := windowInitializer.GetItemBrokerWindowMargins()
 	if err != nil {
 		loggerManager.LogError(err, "Ошибка инициализации окна")
@@ -244,7 +248,7 @@ func main() {
 	dbManager := database.NewDatabaseManager(db, loggerManager)
 	ocrManager := ocr.NewOCRManager(&c)
 	clickManager := click_manager.NewClickManager(portObj, &c, marginX, marginY, screenshotManager, dbManager, loggerManager)
-
+	screenshotManager.SaveScreenShotFull()
 	// Инициализация менеджера прерываний
 	interruptManager := interrupt.NewInterruptManager(loggerManager)
 
