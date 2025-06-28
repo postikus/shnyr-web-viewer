@@ -8,7 +8,7 @@ datasources:
     database: octopus
     user: root
     secureJsonData:
-      password: root
+      password: tY6@uI!oP_aZ8$cV
     jsonData:
       maxOpenConns: 100
       maxIdleConns: 100
