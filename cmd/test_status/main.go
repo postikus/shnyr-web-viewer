@@ -13,7 +13,7 @@ func main() {
 	fmt.Println("🧪 Тестирование системы статусов ШНЫРЯ")
 
 	// Подключаемся к базе данных
-	db, err := sql.Open("mysql", "root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true")
+	db, err := sql.Open("mysql", "root:tY6@uI!oP_aZ8$cV@tcp(108.181.194.102:3306)/octopus?parseTime=true")
 	if err != nil {
 		log.Fatalf("Ошибка подключения к базе данных: %v", err)
 	}

@@ -108,7 +108,7 @@ func getDatabaseDSN() string {
 
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
-		dbPassword = "root"
+		dbPassword = "tY6@uI!oP_aZ8$cV"
 	}
 
 	dbName := os.Getenv("DB_NAME")
@@ -773,10 +773,10 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 
 	// Загружаем все шаблоны
 	tmpl, err := template.New("layout").Funcs(template.FuncMap{
-			"base64encode": func(data []byte) string {
-				return base64.StdEncoding.EncodeToString(data)
-			},
-			"jsEscape": func(s string) string {
+		"base64encode": func(data []byte) string {
+			return base64.StdEncoding.EncodeToString(data)
+		},
+		"jsEscape": func(s string) string {
 			return strings.ReplaceAll(strings.ReplaceAll(s, `\\`, `\\\\`), `\"`, `\\\"`)
 		},
 		"formatDateTime": func(dateTimeStr string) string {
@@ -792,39 +792,39 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 
 			// Форматируем в читаемый вид
 			return localTime.Format("02.01.2006 15:04:05")
-			},
-			"formatPrice": func(price string) string {
-				// Убираем все нецифровые символы
-				cleanPrice := strings.ReplaceAll(strings.ReplaceAll(price, ",", ""), " ", "")
-				if cleanPrice == "" {
-					return price
-				}
+		},
+		"formatPrice": func(price string) string {
+			// Убираем все нецифровые символы
+			cleanPrice := strings.ReplaceAll(strings.ReplaceAll(price, ",", ""), " ", "")
+			if cleanPrice == "" {
+				return price
+			}
 
-				// Добавляем пробелы каждые 3 цифры справа
-				var result string
-				for i, char := range cleanPrice {
-					if i > 0 && (len(cleanPrice)-i)%3 == 0 {
-						result += " "
-					}
-					result += string(char)
+			// Добавляем пробелы каждые 3 цифры справа
+			var result string
+			for i, char := range cleanPrice {
+				if i > 0 && (len(cleanPrice)-i)%3 == 0 {
+					result += " "
 				}
-				return result
-			},
-			"sequence": func(current, total int) []int {
-				var pages []int
-				start := current - 2
-				if start < 1 {
-					start = 1
-				}
-				end := current + 2
-				if end > total {
-					end = total
-				}
-				for i := start; i <= end; i++ {
-					pages = append(pages, i)
-				}
-				return pages
-			},
+				result += string(char)
+			}
+			return result
+		},
+		"sequence": func(current, total int) []int {
+			var pages []int
+			start := current - 2
+			if start < 1 {
+				start = 1
+			}
+			end := current + 2
+			if end > total {
+				end = total
+			}
+			for i := start; i <= end; i++ {
+				pages = append(pages, i)
+			}
+			return pages
+		},
 		"formatCategory": func(category string) string {
 			switch category {
 			case "buy_consumables":
@@ -872,10 +872,10 @@ func renderTemplate(w http.ResponseWriter, data PageData) {
 		"int": func(x float64) int { return int(x) },
 	}).ParseGlob(templatePath)
 
-		if err != nil {
+	if err != nil {
 		http.Error(w, "Template error: "+err.Error(), 500)
-			return
-		}
+		return
+	}
 
 	err = tmpl.ExecuteTemplate(w, "layout.html", data)
 	if err != nil {

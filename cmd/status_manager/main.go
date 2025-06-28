@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// Подключаемся к базе данных
-	dsn := "root:root@tcp(108.181.194.102:3306)/octopus?parseTime=true"
+	dsn := "root:tY6@uI!oP_aZ8$cV@tcp(108.181.194.102:3306)/octopus?parseTime=true"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Ошибка подключения к базе данных: %v", err)

@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// Подключаемся к MySQL без указания базы
-	dsn := "root:root@tcp(108.181.194.102:3306)/"
+	dsn := "root:tY6@uI!oP_aZ8$cV@tcp(108.181.194.102:3306)/"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Ошибка подключения к MySQL: %v", err)
